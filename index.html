@@ -1,12 +1,76 @@
 <title>Mt. Moon</title>
 <style>
-body {display: flex; justify-content: center; align-items: center; background: #1b1d26; width: 100dvw; height: 100dvh; margin: 0px}
+:root {
+	--border-width: 18px;
+	--background-color: #1b1d26;
+	--border-color: #253238;
+	--shadow-color: #15171f;
+	--corner-color: #45a8f6;
+	--corner-ratio: 0.2;
+}
+body {display: flex; justify-content: center; align-items: center; background: var(--background-color); width: 100dvw; height: 100dvh; margin: 0px}
 #screen {
 	width: calc(160px * 3);
 	height: calc(144px * 3);
 	image-rendering: pixelated;
-	border: 12px solid #253238;
-	border-radius: 6px;
+	border: var(--border-width) solid transparent;
+	border-radius: calc(var(--border-width) * (3 / 5));
+	box-shadow: 0 var(--border-width) calc(var(--border-width) * 2) var(--shadow-color);
+	--corner-size: calc(var(--border-width) * 0.8);
+	--corner-offset-a: calc(var(--border-width) * (0.5 + var(--corner-ratio) / 2));
+	--corner-offset-b: calc(var(--border-width) * (0.5 - var(--corner-ratio) / 2));
+	--corner-offset-aa: calc(var(--corner-size) - var(--corner-offset-a) - 0.5px);
+	--corner-offset-ab: calc(var(--corner-size) - var(--corner-offset-a) + 0.5px);
+	--corner-offset-ba: calc(var(--corner-size) - var(--corner-offset-b) - 0.5px);
+	--corner-offset-bb: calc(var(--corner-size) - var(--corner-offset-b) + 0.5px);
+	--corner-width: calc(var(--border-width) * var(--corner-ratio));
+	--corner-len: calc(var(--border-width) * 2 - var(--corner-size));
+	background:
+		radial-gradient(
+			at bottom right,
+			transparent var(--corner-offset-aa),
+			var(--corner-color) var(--corner-offset-ab),
+			var(--corner-color) var(--corner-offset-ba),
+			transparent var(--corner-offset-bb)
+		) border-box top left / var(--corner-size) var(--corner-size) no-repeat,
+		linear-gradient(var(--corner-color)) border-box top var(--corner-size) left var(--corner-offset-b)
+			/ var(--corner-width) var(--corner-len) no-repeat,
+		linear-gradient(var(--corner-color)) border-box top var(--corner-offset-b) left var(--corner-size)
+			/ var(--corner-len) var(--corner-width) no-repeat,
+		radial-gradient(
+			at bottom left,
+			transparent var(--corner-offset-aa),
+			var(--corner-color) var(--corner-offset-ab),
+			var(--corner-color) var(--corner-offset-ba),
+			transparent var(--corner-offset-bb)
+		) border-box top right / var(--corner-size) var(--corner-size) no-repeat,
+		linear-gradient(var(--corner-color)) border-box top var(--corner-size) right var(--corner-offset-b)
+			/ var(--corner-width) var(--corner-len) no-repeat,
+		linear-gradient(var(--corner-color)) border-box top var(--corner-offset-b) right var(--corner-size)
+			/ var(--corner-len) var(--corner-width) no-repeat,
+		radial-gradient(
+			at top right,
+			transparent var(--corner-offset-aa),
+			var(--corner-color) var(--corner-offset-ab),
+			var(--corner-color) var(--corner-offset-ba),
+			transparent var(--corner-offset-bb)
+		) border-box bottom left / var(--corner-size) var(--corner-size) no-repeat,
+		linear-gradient(var(--corner-color)) border-box bottom var(--corner-size) left var(--corner-offset-b)
+			/ var(--corner-width) var(--corner-len) no-repeat,
+		linear-gradient(var(--corner-color)) border-box bottom var(--corner-offset-b) left var(--corner-size)
+			/ var(--corner-len) var(--corner-width) no-repeat,
+		radial-gradient(
+			at top left,
+			transparent var(--corner-offset-aa),
+			var(--corner-color) var(--corner-offset-ab),
+			var(--corner-color) var(--corner-offset-ba),
+			transparent var(--corner-offset-bb)
+		) border-box bottom right / var(--corner-size) var(--corner-size) no-repeat,
+		linear-gradient(var(--corner-color)) border-box bottom var(--corner-size) right var(--corner-offset-b)
+			/ var(--corner-width) var(--corner-len) no-repeat,
+		linear-gradient(var(--corner-color)) border-box bottom var(--corner-offset-b) right var(--corner-size)
+			/ var(--corner-len) var(--corner-width) no-repeat,
+		var(--border-color);
 }
 </style>
 <script type=module>
