@@ -1,4 +1,7 @@
+<!DOCTYPE html>
 <title>Mt. Moon</title>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <style>
 :root {
 	--border-width: 18px;
@@ -7,11 +10,12 @@
 	--shadow-color: #15171f;
 	--corner-color: #45a8f6;
 	--corner-ratio: 0.2;
+	--scale: 1;
 }
 body {display: flex; justify-content: center; align-items: center; background: var(--background-color); width: 100dvw; height: 100dvh; margin: 0px}
 #screen {
-	width: calc(160px * 3);
-	height: calc(144px * 3);
+	width: calc(160px * var(--scale));
+	height: calc(144px * var(--scale));
 	image-rendering: pixelated;
 	border: var(--border-width) solid transparent;
 	border-radius: calc(var(--border-width) * (3 / 5));
@@ -708,6 +712,16 @@ document.body.addEventListener('keydown', e => state.keys.add(e.key))
 document.body.addEventListener('keyup', e => state.keys.delete(e.key))
 
 function run() {
+	const border_width = Number(window
+		.getComputedStyle(document.documentElement)
+		.getPropertyValue('--border-width')
+		.replace('px', ''))
+	const scale = Math.max(1.0, Math.min(
+		Math.floor(window.innerWidth / (screen.width + 2 * border_width)),
+		Math.floor(window.innerHeight / (screen.height + 2 * border_width)),
+	));
+	document.documentElement.style.setProperty('--scale', `${scale}`);
+
 	var just_finished_moving = false
 	var offset = {x: 0, y: 0}
 
