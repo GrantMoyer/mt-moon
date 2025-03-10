@@ -875,6 +875,7 @@ function run() {
 	if (just_finished_moving) {
 		const ladder_type = check_ladder_type(state.view, [8, 8])
 		if (ladder_type != 'none') {
+			state.navigation = []
 			const next_floor = get_next_floor(state.floor, ladder_type)
 			const complementary_ladder_type = ladder_type === 'up' ? 'down' : 'up'
 			const next_floor_ladders = ladders[next_floor][complementary_ladder_type]
