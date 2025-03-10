@@ -755,7 +755,8 @@ function draw_view(view, offset) {
 function draw_player(dir, t, parity) {
 	const direction_index = ['e', 'n', 'w', 's'].findIndex(e => e === dir)
 	const px = direction_index * tile_size * 2
-	const py = ((t > 1 / 3) + parity * 2) * tile_size * 2
+	const cycle_t = Math.floor(t * 16 + 2) % 16
+	const py = ((cycle_t >= 8) + parity * 2) * tile_size * 2
 	ctx.drawImage(
 		player_sheet,
 		px,
@@ -774,7 +775,6 @@ const state = {
 	view: new_view(maps['f1'], init_offset),
 	facing_dir: 'n',
 	moving: false,
-	moved_last_frame: false,
 	consecutive_moves: 0,
 	animation_start_time: null,
 	keys: new Set(),
@@ -850,10 +850,9 @@ function run() {
 		}
 	}
 
-	const move_time = (performance.now() - state.animation_start_time) / 1000 * (60 / 12)
+	const move_time = (performance.now() - state.animation_start_time) / 1000 * (60 / 16)
 	const norm_move_time = Math.min(Math.max(move_time, 0.0), 1.0)
 	if (state.moving) {
-		state.moved_last_frame = true
 		just_finished_moving = norm_move_time === 1.0
 
 		if (just_finished_moving) {
@@ -870,7 +869,7 @@ function run() {
 			offset = {x: Math.round(offset.x), y: Math.round(offset.y)}
 		}
 	} else {
-		state.moved_last_frame = false
+		state.consecutive_moves = 0
 	}
 
 	if (just_finished_moving) {
@@ -889,7 +888,7 @@ function run() {
 	}
 
 	draw_view(state.view, offset)
-	draw_player(state.facing_dir, state.moving ? norm_move_time : 0, state.consecutive_moves % 2)
+	draw_player(state.facing_dir, state.moving ? norm_move_time : 0, state.consecutive_moves % 2 == 0)
 	requestAnimationFrame(run)
 }
 
