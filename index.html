@@ -656,6 +656,72 @@ function check_ladder_type(view, pos) {
 	else return 'none'
 }
 
+function is_in_view(view, x, y) {
+	return 0 <= y && y < view.length && 0 <= x && x < view[y].length
+}
+
+function shortest_path(view, from, to) {
+	if (!is_in_view(view, to.x * 2, to.y * 2)) return null
+
+	const dist = []
+	const prev = []
+	const Q = []
+	for (let r = 0; r < view.length / 2; ++r) {
+		dist.push([])
+		prev.push([])
+		for (let c = 0; c < view[r].length / 2; ++c) {
+			dist[r].push(Infinity)
+			prev[r].push(null)
+			Q.push({x: c, y: r})
+		}
+	}
+
+	dist[from.y][from.x] = 0
+
+	while (Q.length > 0) {
+		let i = 0
+		let u = Q[0]
+		for (let j = 1; j < Q.length; ++j) {
+			if (dist[Q[j].y][Q[j].x] < dist[u.y][u.x]) {
+				u = Q[j]
+				i = j
+			}
+		}
+		Q.splice(i, 1)
+		if (u.x === to.x && u.y === to.y) break;
+
+		const neighbors = [['e', 1, 0], ['n', 0, -1], ['w', -1, 0], ['s', 0, 1]]
+			.map(([dir, x, y]) => ({dir: dir, x: u.x + x, y: u.y + y}))
+			.filter(({dir, x, y}) => {
+				const is_in_Q = () => Q.some(elem => elem.x === x && elem.y === y)
+				return is_in_view(view, x * 2, y * 2) && is_in_Q()
+			})
+		for (let neighbor of neighbors) {
+			const neighbor_tile = [neighbor.x * 2, neighbor.y * 2]
+			const u_tile = [u.x * 2, u.y * 2]
+			const neighbor_dist = is_passable(view, neighbor_tile) && is_passable(view, u_tile)
+				? 1
+				: Infinity
+			const alt = dist[u.y][u.x] + neighbor_dist
+			if (neighbor_dist < dist[neighbor.y][neighbor.x]) {
+				dist[neighbor.y][neighbor.x] = alt
+				prev[neighbor.y][neighbor.x] = {pos: u, dir: neighbor.dir}
+			}
+		}
+	}
+
+	if (dist[to.y][to.x] === Infinity) {
+		return null
+	} else {
+		const path = []
+		let pos = to
+		while (!(pos.x === from.x && pos.y === from.y)) {
+			path.unshift(prev[pos.y][pos.x].dir)
+			pos = prev[pos.y][pos.x].pos
+		}
+		return path
+	}
+}
 
 function get_offset(i) {
 	const width = tile_sheet.width / tile_size
@@ -705,11 +771,14 @@ const state = {
 	consecutive_moves: 0,
 	animation_start_time: null,
 	keys: new Set(),
+	click: null,
 	floor: 'f1',
+	navigation: [],
 }
 
 document.body.addEventListener('keydown', e => state.keys.add(e.key))
 document.body.addEventListener('keyup', e => state.keys.delete(e.key))
+document.body.addEventListener('click', e => state.click = {x: e.offsetX, y: e.offsetY})
 
 function run() {
 	const border_width = Number(window
@@ -722,14 +791,27 @@ function run() {
 	));
 	document.documentElement.style.setProperty('--scale', `${scale}`);
 
-	var just_finished_moving = false
-	var offset = {x: 0, y: 0}
+	let just_finished_moving = false
+	let offset = {x: 0, y: 0}
 
-	const prev_facing_dir = state.facing_dir;
-	var pressed_dir = false;
+	let prev_facing_dir = state.facing_dir;
+	let pressed_dir = false;
+
+	if (!state.moving && state.click !== null) {
+		const pos = {
+			x: Math.floor(state.click.x / scale / tile_size / 2),
+			y: Math.floor(state.click.y / scale / tile_size / 2),
+		}
+		state.click = null
+		state.navigation = shortest_path(state.view, {x: 4, y: 4}, pos) ?? []
+	}
 
 	if (state.moving) {
-		// don't process keys
+		state.click = null
+	} else if (state.navigation.length > 0) {
+		state.facing_dir = state.navigation.shift()
+		prev_facing_dir = state.facing_dir
+		pressed_dir = true
 	} else if (state.keys.has('ArrowRight') && !state.keys.has('ArrowLeft')) {
 		state.facing_dir = 'e'
 		pressed_dir = true
