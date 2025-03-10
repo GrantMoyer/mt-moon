@@ -844,6 +844,8 @@ function run() {
 			state.consecutive_moves += 1
 			state.animation_start_time = performance.now()
 			append_view(state.view, state.facing_dir, state.floor)
+		} else {
+			state.navigation = []
 		}
 	}
 
