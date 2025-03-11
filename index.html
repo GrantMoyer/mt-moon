@@ -574,64 +574,89 @@ function append_view(view, npcs, dir, floor) {
 		dir === 's' ? view[view.length - 1] :
 		dir === 'w' ? view.map(row => row[0]) :
 		undefined
-	const deflt = [
-		new Array(from.length),
-		new Array(from.length),
-	]
-	for (let i = 0; i < from.length; ++i) {
-		const sub = default_subs[floor][dir][from[i]]
-		deflt[0][i] = sub[0]
-		deflt[1][i] = sub[1]
-	}
-	for (let i = 0; i < from.length; ++i) {
-		deflt[0][i] ??= deflt[0][i - 2] ?? deflt[0][i + 2] ?? 0
-		deflt[1][i] ??= deflt[1][i - 2] ?? deflt[1][i + 2] ?? 0
-	}
-
-	const spawn_default_ladder = Math.random() < 8 / (screen_width * screen_height)
-	if (spawn_default_ladder) {
-		const spawnable = [0, 1]
-		const candidates = []
-		for (let i = 0; i < from.length; i += 2) {
-			if ([
-				deflt[0][i],
-				deflt[1][i],
-				deflt[0][i + 1],
-				deflt[1][i + 1],
-			].every(t => spawnable.includes(t))) {
-				candidates.push(i)
-			}
+	const gen_default = () => {
+		const deflt = [
+			new Array(from.length),
+			new Array(from.length),
+		]
+		for (let i = 0; i < from.length; ++i) {
+			const sub = default_subs[floor][dir][from[i]]
+			deflt[0][i] = sub[0]
+			deflt[1][i] = sub[1]
 		}
-		const r = Math.floor(Math.random() * candidates.length)
-		const i = candidates[r]
+
+		const before_from =
+			dir === 'e' ? view.map(row => row[row.length - 3]) :
+			dir === 'n' ? view[2] :
+			dir === 's' ? view[view.length - 3] :
+			dir === 'w' ? view.map(row => row[2]) :
+			undefined
+		for (let i = 0; i < from.length; ++i) {
+			if (deflt[0][i] !== null && deflt[1][i] !== null) continue
+			for (let tile of [
+				before_from[i],
+				deflt[0][i - 2],
+				deflt[0][i + 2],
+				deflt[1][i - 2],
+				deflt[1][i + 2],
+			]) {
+				if (tile === 0 || tile === 1 || tile == 4) {
+					deflt[0][i] ??= tile
+					deflt[1][i] ??= tile
+					break
+				}
+			}
+			deflt[0][i] ??= 0
+			deflt[1][i] ??= 0
+		}
+
+		const spawn_default_ladder = Math.random() < 2 / (screen_width + screen_height)
+		if (spawn_default_ladder) {
+			const spawnable = [0, 1, 4]
+			const candidates = []
+			for (let i = 0; i < from.length; i += 2) {
+				if ([
+					deflt[0][i],
+					deflt[1][i],
+					deflt[0][i + 1],
+					deflt[1][i + 1],
+				].every(t => spawnable.includes(t))) {
+					candidates.push(i)
+				}
+			}
+			const r = Math.floor(Math.random() * candidates.length)
+			const i = candidates[r]
 
 
-		const down_ladder =
-			dir === 'e' ? [16, 15, 17, 18] :
-			dir === 'n' ? [17, 16, 18, 15] :
-			dir === 's' ? [16, 17, 15, 18] :
-			dir === 'w' ? [15, 16, 18, 17] :
-			undefined
-		const up_ladder =
-			dir === 'e' ? [20, 19, 21, 22] :
-			dir === 'n' ? [21, 20, 22, 19] :
-			dir === 's' ? [20, 21, 19, 22] :
-			dir === 'w' ? [19, 20, 22, 21] :
-			undefined
-		const ladder_tiles =
-			floor == 'f1' ? down_ladder :
-			floor == 'b1' && Math.random() < 0.5 ? down_ladder :
-			floor == 'b1' ? up_ladder :
-			floor == 'b2' ? up_ladder :
-			undefined
+			const down_ladder =
+				dir === 'e' ? [16, 15, 17, 18] :
+				dir === 'n' ? [17, 16, 18, 15] :
+				dir === 's' ? [16, 17, 15, 18] :
+				dir === 'w' ? [15, 16, 18, 17] :
+				undefined
+			const up_ladder =
+				dir === 'e' ? [20, 19, 21, 22] :
+				dir === 'n' ? [21, 20, 22, 19] :
+				dir === 's' ? [20, 21, 19, 22] :
+				dir === 'w' ? [19, 20, 22, 21] :
+				undefined
+			const ladder_tiles =
+				floor == 'f1' ? down_ladder :
+				floor == 'b1' && Math.random() < 0.5 ? down_ladder :
+				floor == 'b1' ? up_ladder :
+				floor == 'b2' ? up_ladder :
+				undefined
 
-		deflt[0][i] = ladder_tiles[0]
-		deflt[1][i] = ladder_tiles[1]
-		deflt[0][i + 1] = ladder_tiles[2]
-		deflt[1][i + 1] = ladder_tiles[3]
+			deflt[0][i] = ladder_tiles[0]
+			deflt[1][i] = ladder_tiles[1]
+			deflt[0][i + 1] = ladder_tiles[2]
+			deflt[1][i + 1] = ladder_tiles[3]
+		}
+
+		return deflt
 	}
 
-	const choices = transitions[floor][dir].get(from.join()) ?? [{tiles: deflt, npcs: []}]
+	const choices = transitions[floor][dir].get(from.join()) ?? [{tiles: gen_default(), npcs: []}]
 	const i = Math.floor(Math.random() * choices.length)
 	const {tiles, npcs: spawned_npcs} = window.structuredClone(choices[i])
 	remove(spawned_npcs, spawned_npc => npcs.some(npc => npc.name === spawned_npc.name))
