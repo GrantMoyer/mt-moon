@@ -309,6 +309,26 @@ const ladders = {
 	},
 }
 
+const npc_locations = {
+	f1: [
+		{x: 5, y: 6, dir: 's', name: 'hiker', sprite: 0},
+		{x: 7, y: 22, dir: 's', name: 'bug_catcher_w', sprite: 1},
+		{x: 12, y: 16, dir: 'e', name: 'youngster', sprite: 1},
+		{x: 16, y: 23, dir: 's', name: 'lass_s', sprite: 2},
+		{x: 24, y: 31, dir: 's', name: 'super_nerd', sprite: 3},
+		{x: 30, y: 4, dir: 's', name: 'lass_n', sprite: 4},
+		{x: 30, y: 27, dir: 'e', name: 'bug_catcher_e', sprite: 5},
+	],
+	b1: [],
+	b2: [
+		{x: 11, y: 16, dir: 's', name: 'grunt_w', sprite: 6},
+		{x: 12, y: 8, dir: 'e', name: 'fossil_nerd', sprite: 7},
+		{x: 15, y: 22, dir: 's', name: 'grunt_s', sprite: 6},
+		{x: 27, y: 11, dir: 'n', name: 'grunt_n', sprite: 6},
+		{x: 29, y: 17, dir: 'w', name: 'grunt_e', sprite: 6},
+	],
+}
+
 function get_next_floor(floor, direction) {
 	const floors = Object.keys(maps)
 	const offset = direction === 'up' ? -1 : 1
@@ -319,7 +339,7 @@ function get_next_floor(floor, direction) {
 const screen_width = 20
 const screen_height = 18
 
-function gen_transition_mappings(map) {
+function gen_transition_mappings(map, npcs) {
 	const forbidden_tiles = [33];
 
 	const width = map[0].length;
@@ -330,15 +350,24 @@ function gen_transition_mappings(map) {
 		for (let c = 1; c < width - 2; c += 2) {
 			const from = new Array(screen_height)
 			const to = [new Array(screen_height), new Array(screen_height)]
+			const spawned_npcs = []
 			for (let i = 0; i < screen_height; ++i) {
 				from[i] = map[r + i][c];
 				to[0][i] = map[r + i][c + 1];
 				to[1][i] = map[r + i][c + 2];
+				for (let npc of npcs)
+					if (npc.x * 2 == c + 1 && npc.y * 2 == r + i)
+						spawned_npcs.push({
+							index: i,
+							dir: npc.dir,
+							name: npc.name,
+							sprite: npc.sprite,
+						})
 			}
 			if (to.some(arr => arr.some(i => forbidden_tiles.includes(i)))) continue
 			const from_s = from.join()
 			if (!t_e.has(from_s)) t_e.set(from_s, [])
-			t_e.get(from_s).push(to)
+			t_e.get(from_s).push({tiles: to, npcs: spawned_npcs})
 		}
 	}
 
@@ -347,15 +376,24 @@ function gen_transition_mappings(map) {
 		for (let c = 0; c < width - screen_width; c += 2) {
 			const from = new Array(screen_width)
 			const to = [new Array(screen_width), new Array(screen_width)]
+			const spawned_npcs = []
 			for (let i = 0; i < screen_width; ++i) {
 				from[i] = map[r][c + i];
 				to[0][i] = map[r - 1][c + i];
 				to[1][i] = map[r - 2][c + i];
+				for (let npc of npcs)
+					if (npc.x * 2 == c + i && npc.y * 2 == r - 2)
+						spawned_npcs.push({
+							index: i,
+							dir: npc.dir,
+							name: npc.name,
+							sprite: npc.sprite,
+						})
 			}
 			if (to.some(arr => arr.some(i => forbidden_tiles.includes(i)))) continue
 			const from_s = from.join()
 			if (!t_n.has(from_s)) t_n.set(from_s, [])
-			t_n.get(from_s).push(to)
+			t_n.get(from_s).push({tiles: to, npcs: spawned_npcs})
 		}
 	}
 
@@ -364,15 +402,24 @@ function gen_transition_mappings(map) {
 		for (let c = 2; c < width; c += 2) {
 			const from = new Array(screen_height)
 			const to = [new Array(screen_height), new Array(screen_height)]
+			const spawned_npcs = []
 			for (let i = 0; i < screen_height; ++i) {
 				from[i] = map[r + i][c];
 				to[0][i] = map[r + i][c - 1];
 				to[1][i] = map[r + i][c - 2];
+				for (let npc of npcs)
+					if (npc.x * 2 == c - 2 && npc.y * 2 == r + i)
+						spawned_npcs.push({
+							index: i,
+							dir: npc.dir,
+							name: npc.name,
+							sprite: npc.sprite,
+						})
 			}
 			if (to.some(arr => arr.some(i => forbidden_tiles.includes(i)))) continue
 			const from_s = from.join()
 			if (!t_w.has(from_s)) t_w.set(from_s, [])
-			t_w.get(from_s).push(to)
+			t_w.get(from_s).push({tiles: to, npcs: spawned_npcs})
 		}
 	}
 
@@ -381,22 +428,33 @@ function gen_transition_mappings(map) {
 		for (let c = 0; c < width - screen_width; c += 2) {
 			const from = new Array(screen_width)
 			const to = [new Array(screen_width), new Array(screen_width)]
+			const spawned_npcs = []
 			for (let i = 0; i < screen_width; ++i) {
 				from[i] = map[r][c + i];
 				to[0][i] = map[r + 1][c + i];
 				to[1][i] = map[r + 2][c + i];
+				for (let npc of npcs)
+					if (npc.x * 2 == c + i && npc.y * 2 == r + 1)
+						spawned_npcs.push({
+							index: i,
+							dir: npc.dir,
+							name: npc.name,
+							sprite: npc.sprite,
+						})
 			}
 			if (to.some(arr => arr.some(i => forbidden_tiles.includes(i)))) continue
 			const from_s = from.join()
 			if (!t_s.has(from_s)) t_s.set(from_s, [])
-			t_s.get(from_s).push(to)
+			t_s.get(from_s).push({tiles: to, npcs: spawned_npcs})
 		}
 	}
 
 	return {e: t_e, n: t_n, w: t_w, s: t_s}
 }
 
-const transitions = Object.fromEntries(Object.entries(maps).map(([name, map]) => [name, gen_transition_mappings(map)]))
+const transitions = Object.fromEntries(
+	Object.entries(maps).map(([name, map]) => [name, gen_transition_mappings(map, npc_locations[name])])
+)
 
 const default_subs = {
 	f1: {
@@ -503,8 +561,13 @@ const default_subs = {
 	},
 }
 
+function remove(arr, pred) {
+	for (let i = arr.length - 1; i >= 0; --i)
+		if (pred(arr[i]))
+			arr.splice(i, 1)
+}
 
-function append_view(view, dir, floor) {
+function append_view(view, npcs, dir, floor) {
 	const from =
 		dir === 'e' ? view.map(row => row[row.length - 1]) :
 		dir === 'n' ? view[0] :
@@ -568,41 +631,77 @@ function append_view(view, dir, floor) {
 		deflt[1][i + 1] = ladder_tiles[3]
 	}
 
-	const choices = transitions[floor][dir].get(from.join()) ?? [deflt]
+	const choices = transitions[floor][dir].get(from.join()) ?? [{tiles: deflt, npcs: []}]
 	const i = Math.floor(Math.random() * choices.length)
-	const choice = window.structuredClone(choices[i])
+	const {tiles, npcs: spawned_npcs} = window.structuredClone(choices[i])
+	remove(spawned_npcs, spawned_npc => npcs.some(npc => npc.name === spawned_npc.name))
 
 	switch (dir) {
 		case 'e':
 			for (let i = 0; i < view.length; ++i) {
-				view[i].push(choice[0][i])
-				view[i].push(choice[1][i])
+				view[i].push(tiles[0][i])
+				view[i].push(tiles[1][i])
 			}
+			for (let npc of spawned_npcs)
+				npcs.push({
+					x: view[0].length / 2 - 1,
+					y: npc.index / 2,
+					dir: npc.dir,
+					name: npc.name,
+					sprite: npc.sprite,
+				})
 			break
 		case 'n':
-			view.unshift(choice[0])
-			view.unshift(choice[1])
+			view.unshift(tiles[0])
+			view.unshift(tiles[1])
+			for (let npc of npcs) npc.y += 1
+			for (let npc of spawned_npcs)
+				npcs.push({
+					x: npc.index / 2,
+					y: 0,
+					dir: npc.dir,
+					name: npc.name,
+					sprite: npc.sprite,
+				})
 			break
 		case 'w':
 			for (let i = 0; i < view.length; ++i) {
-				view[i].unshift(choice[0][i])
-				view[i].unshift(choice[1][i])
+				view[i].unshift(tiles[0][i])
+				view[i].unshift(tiles[1][i])
 			}
+			for (let npc of npcs) npc.x += 1
+			for (let npc of spawned_npcs)
+				npcs.push({
+					x: 0,
+					y: npc.index / 2,
+					dir: npc.dir,
+					name: npc.name,
+					sprite: npc.sprite,
+				})
 			break
 		case 's':
-			view.push(choice[0])
-			view.push(choice[1])
+			view.push(tiles[0])
+			view.push(tiles[1])
+			for (let npc of spawned_npcs)
+				npcs.push({
+					x: npc.index / 2,
+					y: view.length / 2 - 1,
+					dir: npc.dir,
+					name: npc.name,
+					sprite: npc.sprite,
+				})
 			break
 	}
 }
 
-function truncate_view(view, dir) {
+function truncate_view(view, npcs, dir) {
 	switch (dir) {
 		case 'e':
 			for (let i = 0; i < view.length; ++i) {
 				view[i].shift()
 				view[i].shift()
 			}
+			for (let npc of npcs) npc.x -= 1
 			break
 		case 'n':
 			view.pop()
@@ -617,8 +716,10 @@ function truncate_view(view, dir) {
 		case 's':
 			view.shift()
 			view.shift()
+			for (let npc of npcs) npc.y -= 1
 			break
 	}
+	remove(npcs, ({x, y}) => !(0 <= x && x < screen_width / 2 && 0 <= y && y < screen_height / 2))
 }
 
 function new_view(map, offset) {
@@ -639,6 +740,9 @@ const tile_sheet = await fetch('assets/tiles.png')
 	.then(res => res.blob())
 	.then(blob => window.createImageBitmap(blob))
 const player_sheet = await fetch('assets/player.png')
+	.then(res => res.blob())
+	.then(blob => window.createImageBitmap(blob))
+const npc_sheet = await fetch('assets/npc.png')
 	.then(res => res.blob())
 	.then(blob => window.createImageBitmap(blob))
 
@@ -752,6 +856,25 @@ function draw_view(view, offset) {
 	}
 }
 
+function draw_npc(npc, offset) {
+	const direction_index = ['e', 'n', 'w', 's'].findIndex(e => e === npc.dir)
+	const nx = direction_index * tile_size * 2
+	const ny = npc.sprite * tile_size * 2
+	const x = npc.x * tile_size * 2 - offset.x
+	const y = npc.y * tile_size * 2 - 4 - offset.y
+	ctx.drawImage(
+		npc_sheet,
+		nx,
+		ny,
+		tile_size * 2,
+		tile_size * 2,
+		x,
+		y,
+		tile_size * 2,
+		tile_size * 2
+	)
+}
+
 function draw_player(dir, t, parity) {
 	const direction_index = ['e', 'n', 'w', 's'].findIndex(e => e === dir)
 	const px = direction_index * tile_size * 2
@@ -773,6 +896,7 @@ function draw_player(dir, t, parity) {
 const init_offset = {x: 14, y: 35}
 const state = {
 	view: new_view(maps['f1'], init_offset),
+	npcs: [],
 	facing_dir: 'n',
 	moving: false,
 	consecutive_moves: 0,
@@ -844,7 +968,7 @@ function run() {
 			state.moving = true
 			state.consecutive_moves += 1
 			state.animation_start_time = performance.now()
-			append_view(state.view, state.facing_dir, state.floor)
+			append_view(state.view, state.npcs, state.facing_dir, state.floor)
 		} else {
 			state.navigation = []
 		}
@@ -856,7 +980,7 @@ function run() {
 		just_finished_moving = norm_move_time === 1.0
 
 		if (just_finished_moving) {
-			truncate_view(state.view, state.facing_dir)
+			truncate_view(state.view, state.npcs, state.facing_dir)
 			state.moving = false
 			state.animation_start_time = null
 		} else {
@@ -883,11 +1007,13 @@ function run() {
 			const random_ladder = next_floor_ladders[i]
 			state.view = new_view(maps[next_floor], random_ladder)
 			state.floor = next_floor
+			state.npcs = []
 		}
 	}
 
 	draw_view(state.view, offset)
 	draw_player(state.facing_dir, state.moving ? norm_move_time : 0, state.consecutive_moves % 2 == 0)
+	for (let npc of state.npcs) draw_npc(npc, offset)
 	requestAnimationFrame(run)
 }
 
