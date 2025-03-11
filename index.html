@@ -324,7 +324,7 @@ const npc_locations = {
 		{x: 11, y: 16, dir: 's', name: 'grunt_w', sprite: 6},
 		{x: 12, y: 8, dir: 'e', name: 'fossil_nerd', sprite: 7},
 		{x: 15, y: 22, dir: 's', name: 'grunt_s', sprite: 6},
-		{x: 27, y: 11, dir: 'n', name: 'grunt_n', sprite: 6},
+		{x: 29, y: 11, dir: 'n', name: 'grunt_n', sprite: 6},
 		{x: 29, y: 17, dir: 'w', name: 'grunt_e', sprite: 6},
 	],
 }
@@ -722,15 +722,27 @@ function truncate_view(view, npcs, dir) {
 	remove(npcs, ({x, y}) => !(0 <= x && x < screen_width / 2 && 0 <= y && y < screen_height / 2))
 }
 
-function new_view(map, offset) {
+function new_view(floor, offset) {
 	const view = []
-	for (let r = 0; r < 18; ++r) {
+	const min_y = offset.y * 2 - 8
+	const min_x = offset.x * 2 - 8
+	for (let r = 0; r < screen_height; ++r) {
 		view.push([])
-		for (let c = 0; c < 20; ++c) {
-			view[r].push(map[r + offset.y * 2 - 8]?.at(c + offset.x * 2 - 8) ?? 34)
+		for (let c = 0; c < screen_width; ++c) {
+			view[r].push(maps[floor][r + min_y]?.at(c + min_x) ?? 34)
 		}
 	}
-	return view
+	const npcs = npc_locations[floor]
+		.filter(({x, y}) => min_x <= x * 2 && x * 2 < min_x + screen_height
+			&& min_y <= y * 2 && y * 2 < min_y + screen_height)
+		.map(npc => ({
+			x: npc.x - offset.x + 4,
+			y: npc.y - offset.y + 4,
+			dir: npc.dir,
+			name: npc.name,
+			sprite: npc.sprite,
+		}))
+	return [view, npcs]
 }
 
 const tile_size = 8
@@ -905,9 +917,10 @@ function draw_player(dir, t, parity) {
 }
 
 const init_offset = {x: 14, y: 35}
+const [init_view, init_npcs] = new_view('f1', init_offset)
 const state = {
-	view: new_view(maps['f1'], init_offset),
-	npcs: [],
+	view: init_view,
+	npcs: init_npcs,
 	facing_dir: 'n',
 	moving: false,
 	consecutive_moves: 0,
@@ -1016,9 +1029,10 @@ function run() {
 			const next_floor_ladders = ladders[next_floor][complementary_ladder_type]
 			const i = Math.floor(Math.random() * next_floor_ladders.length)
 			const random_ladder = next_floor_ladders[i]
-			state.view = new_view(maps[next_floor], random_ladder)
+			const [view, npcs] = new_view(next_floor, random_ladder)
+			state.view = view
+			state.npcs = npcs
 			state.floor = next_floor
-			state.npcs = []
 		}
 	}
 
