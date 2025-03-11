@@ -746,12 +746,25 @@ const npc_sheet = await fetch('assets/npc.png')
 	.then(res => res.blob())
 	.then(blob => window.createImageBitmap(blob))
 
-const passable_tiles = [0, 1, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 33];
-function is_passable(view, pos) {
-	for (let r = pos[1]; r < pos[1] + 2; ++r)
-		for (let c = pos[0]; c < pos[0] + 2; ++c)
-			if (!passable_tiles.includes(view[r][c])) return false
-	return true
+const walkable_tiles = [0, 1, 4, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 33];
+function is_passable(view, npcs, from, to) {
+	const from_tiles = [
+		view[from.y][from.x],
+		view[from.y][from.x + 1],
+		view[from.y + 1][from.x],
+		view[from.y + 1][from.x + 1],
+	]
+	const to_tiles = [
+		view[to.y][to.x],
+		view[to.y][to.x + 1],
+		view[to.y + 1][to.x],
+		view[to.y + 1][to.x + 1],
+	]
+	return from_tiles.every(tile => walkable_tiles.includes(tile))
+		&& to_tiles.every(tile => walkable_tiles.includes(tile))
+		&& !(from_tiles.includes(0) && to_tiles.includes(1))
+		&& !(from_tiles.includes(1) && to_tiles.includes(0))
+		&& !npcs.some(npc => npc.x * 2 == to.x && npc.y * 2 == to.y)
 }
 
 function check_ladder_type(view, pos) {
@@ -771,7 +784,7 @@ function is_in_view(view, x, y) {
 	return 0 <= y && y < view.length && 0 <= x && x < view[y].length
 }
 
-function shortest_path(view, from, to) {
+function shortest_path(view, npcs, from, to) {
 	if (!is_in_view(view, to.x * 2, to.y * 2)) return null
 
 	const dist = []
@@ -808,11 +821,9 @@ function shortest_path(view, from, to) {
 				return is_in_view(view, x * 2, y * 2) && is_in_Q()
 			})
 		for (let neighbor of neighbors) {
-			const neighbor_tile = [neighbor.x * 2, neighbor.y * 2]
-			const u_tile = [u.x * 2, u.y * 2]
-			const neighbor_dist = is_passable(view, neighbor_tile) && is_passable(view, u_tile)
-				? 1
-				: Infinity
+			const neighbor_tile = {x: neighbor.x * 2, y: neighbor.y * 2}
+			const u_tile = {x: u.x * 2, y: u.y * 2}
+			const neighbor_dist = is_passable(view, npcs, u_tile, neighbor_tile) ? 1 : Infinity
 			const alt = dist[u.y][u.x] + neighbor_dist
 			if (neighbor_dist < dist[neighbor.y][neighbor.x]) {
 				dist[neighbor.y][neighbor.x] = alt
@@ -934,7 +945,7 @@ function run() {
 			y: Math.floor(state.click.y / scale / tile_size / 2),
 		}
 		state.click = null
-		state.navigation = shortest_path(state.view, {x: 4, y: 4}, pos) ?? []
+		state.navigation = shortest_path(state.view, state.npcs, {x: 4, y: 4}, pos) ?? []
 	}
 
 	if (state.moving) {
@@ -959,12 +970,12 @@ function run() {
 
 	if (pressed_dir && state.facing_dir === prev_facing_dir) {
 		const next_pos =
-			state.facing_dir === 'e' ? [8 + 2, 8] :
-			state.facing_dir === 'n' ? [8, 8 - 2] :
-			state.facing_dir === 's' ? [8, 8 + 2] :
-			state.facing_dir === 'w' ? [8 - 2, 8] :
+			state.facing_dir === 'e' ? {x: 8 + 2, y: 8} :
+			state.facing_dir === 'n' ? {x: 8, y: 8 - 2} :
+			state.facing_dir === 's' ? {x: 8, y: 8 + 2} :
+			state.facing_dir === 'w' ? {x: 8 - 2, y: 8} :
 			undefined
-		if (is_passable(state.view, next_pos)) {
+		if (is_passable(state.view, state.npcs, {x: 8, y: 8}, next_pos)) {
 			state.moving = true
 			state.consecutive_moves += 1
 			state.animation_start_time = performance.now()
