@@ -903,6 +903,34 @@ const characters = [
 ]
 const char_indices = new Map(characters.entries().map(([i, c]) => [c, i]))
 
+function text_width(text) {
+	let width = 0
+	while (text.length > 0) {
+		text = char_indices.get(text.substring(0, 2)) !== undefined
+			? text.substring(2)
+			: text.substring(1)
+		++width
+	}
+	return width
+}
+
+function flow_text(text, width) {
+	const flowed = []
+	const words = text.split(/\s+/)
+	let current_width = width
+	for (let word of words) {
+		const word_len = text_width(word)
+		if (current_width + 1 + word_len <= width) {
+			flowed[flowed.length - 1] += ` ${word}`
+			current_width += 1 + word_len
+		} else {
+			flowed.push(word)
+			current_width = word_len
+		}
+	}
+	return flowed
+}
+
 function draw_tile(sheet, i, r, c, offset={x: 0, y: 0}) {
 	const [tx, ty] = get_pos_in_sheet(sheet, i)
 	const [x, y] = [c * tile_size, r * tile_size]
@@ -940,9 +968,11 @@ function draw_textbox_border(r, c, width, height) {
 	}
 }
 
-function draw_text(text, r, c) {
+function draw_text(text, r, c, max_chars=Infinity) {
 	let orig_c = c
+	let drawn_chars = 0
 	while (text.length > 0) {
+		if (drawn_chars >= max_chars) return false
 		if (text[0] === '\n') {
 			text = text.substring(1)
 			++r
@@ -956,16 +986,19 @@ function draw_text(text, r, c) {
 				text = text.substring(1)
 			}
 			draw_tile(dialog_sheet, i, r, c)
+			++drawn_chars
 			++c
 		}
 	}
+	return true
 }
 
-function draw_textbox(text, arrow=false) {
+function draw_textbox(text, arrow=false, max_chars=Infinity) {
 	const row = 12
 	draw_textbox_border(row, 0, screen_width, screen_height - row)
-	draw_text(text.replace("\n", "\n\n"), row + 2, 1)
-	if (arrow) draw_tile(dialog_sheet, char_indices.get("▼"), screen_height - 2, screen_width - 2)
+	const text_complete = draw_text(text.replaceAll("\n", "\n\n"), row + 2, 1, max_chars)
+	if (arrow && text_complete) draw_tile(dialog_sheet, char_indices.get("▼"), screen_height - 2, screen_width - 2)
+	return text_complete
 }
 
 function draw_view(view, offset) {
@@ -1019,15 +1052,24 @@ const state = {
 	facing_dir: 'n',
 	moving: false,
 	consecutive_moves: 0,
-	animation_start_time: null,
+	animation_start_time: performance.now(),
 	keys: new Set(),
 	click: null,
 	floor: 'f1',
 	navigation: [],
+	dialog: [],
+	dialog_segment_complete: false,
 }
 
-document.body.addEventListener('keydown', e => state.keys.add(e.key))
-document.body.addEventListener('keyup', e => state.keys.delete(e.key))
+function start_dialog(text) {
+	state.dialog = flow_text(text, screen_width - 3)
+	state.animation_start_time = performance.now()
+	state.dialog_segment_complete = false
+}
+
+const interact_keys = new Set(['KeyZ', 'KeyX', 'Space', 'Enter'])
+document.body.addEventListener('keydown', e => state.keys.add(e.code))
+document.body.addEventListener('keyup', e => state.keys.delete(e.code))
 document.body.addEventListener('click', e => state.click = {x: e.offsetX, y: e.offsetY})
 
 function run() {
@@ -1047,93 +1089,110 @@ function run() {
 	let prev_facing_dir = state.facing_dir;
 	let pressed_dir = false;
 
-	if (!state.moving && state.click !== null) {
-		const pos = {
-			x: Math.floor(state.click.x / scale / tile_size / 2),
-			y: Math.floor(state.click.y / scale / tile_size / 2),
-		}
-		state.click = null
-		state.navigation = shortest_path(state.view, state.npcs, {x: 4, y: 4}, pos) ?? []
-	}
+	const animation_time = (performance.now() - state.animation_start_time) / 1000
+	let norm_move_time
 
-	if (state.moving) {
-		state.click = null
-	} else if (state.navigation.length > 0) {
-		state.facing_dir = state.navigation.shift()
-		prev_facing_dir = state.facing_dir
-		pressed_dir = true
-	} else if (state.keys.has('ArrowRight') && !state.keys.has('ArrowLeft')) {
-		state.facing_dir = 'e'
-		pressed_dir = true
-	} else if (state.keys.has('ArrowUp') && !state.keys.has('ArrowDown')) {
-		state.facing_dir = 'n'
-		pressed_dir = true
-	} else if (state.keys.has('ArrowLeft') && !state.keys.has('ArrowRight')) {
-		state.facing_dir = 'w'
-		pressed_dir = true
-	} else if (state.keys.has('ArrowDown') && !state.keys.has('ArrowUp')) {
-		state.facing_dir = 's'
-		pressed_dir = true
-	}
-
-	if (pressed_dir && state.facing_dir === prev_facing_dir) {
-		const next_pos =
-			state.facing_dir === 'e' ? {x: 8 + 2, y: 8} :
-			state.facing_dir === 'n' ? {x: 8, y: 8 - 2} :
-			state.facing_dir === 's' ? {x: 8, y: 8 + 2} :
-			state.facing_dir === 'w' ? {x: 8 - 2, y: 8} :
-			undefined
-		if (is_passable(state.view, state.npcs, {x: 8, y: 8}, next_pos)) {
-			state.moving = true
-			state.consecutive_moves += 1
-			state.animation_start_time = performance.now()
-			append_view(state.view, state.npcs, state.facing_dir, state.floor)
-		} else {
-			state.navigation = []
-		}
-	}
-
-	const move_time = (performance.now() - state.animation_start_time) / 1000 * (60 / 16)
-	const norm_move_time = Math.min(Math.max(move_time, 0.0), 1.0)
-	if (state.moving) {
-		just_finished_moving = norm_move_time === 1.0
-
-		if (just_finished_moving) {
-			truncate_view(state.view, state.npcs, state.facing_dir)
-			state.moving = false
-			state.animation_start_time = null
-		} else {
-			offset =
-				state.facing_dir === 'e' ? {x: norm_move_time * tile_size * 2, y: 0} :
-				state.facing_dir === 'n' ? {x: 0, y: (1.0 - norm_move_time) * tile_size * 2} :
-				state.facing_dir === 's' ? {x: 0, y: norm_move_time * tile_size * 2} :
-				state.facing_dir === 'w' ? {x: (1.0 - norm_move_time) * tile_size * 2, y: 0} :
-				undefined
-			offset = {x: Math.round(offset.x), y: Math.round(offset.y)}
+	const dialog_text = state.dialog.slice(0, 2).join('\n')
+	if (state.dialog.length > 0) {
+		if (state.dialog_segment_complete && state.keys.intersection(interact_keys).size > 0) {
+			state.dialog.splice(0, 2)
+			state.animation_start_time = state.dialog.length > 0 ? performance.now() : null
 		}
 	} else {
-		state.consecutive_moves = 0
-	}
+		if (!state.moving && state.click !== null) {
+			const pos = {
+				x: Math.floor(state.click.x / scale / tile_size / 2),
+				y: Math.floor(state.click.y / scale / tile_size / 2),
+			}
+			state.click = null
+			state.navigation = shortest_path(state.view, state.npcs, {x: 4, y: 4}, pos) ?? []
+		}
 
-	if (just_finished_moving) {
-		const ladder_type = check_ladder_type(state.view, [8, 8])
-		if (ladder_type != 'none') {
-			state.navigation = []
-			const next_floor = get_next_floor(state.floor, ladder_type)
-			const complementary_ladder_type = ladder_type === 'up' ? 'down' : 'up'
-			const next_floor_ladders = ladders[next_floor][complementary_ladder_type]
-			const i = Math.floor(Math.random() * next_floor_ladders.length)
-			const random_ladder = next_floor_ladders[i]
-			const [view, npcs] = new_view(next_floor, random_ladder)
-			state.view = view
-			state.npcs = npcs
-			state.floor = next_floor
+		if (state.moving) {
+			state.click = null
+		} else if (state.navigation.length > 0) {
+			state.facing_dir = state.navigation.shift()
+			prev_facing_dir = state.facing_dir
+			pressed_dir = true
+		} else if (state.keys.has('ArrowRight') && !state.keys.has('ArrowLeft')) {
+			state.facing_dir = 'e'
+			pressed_dir = true
+		} else if (state.keys.has('ArrowUp') && !state.keys.has('ArrowDown')) {
+			state.facing_dir = 'n'
+			pressed_dir = true
+		} else if (state.keys.has('ArrowLeft') && !state.keys.has('ArrowRight')) {
+			state.facing_dir = 'w'
+			pressed_dir = true
+		} else if (state.keys.has('ArrowDown') && !state.keys.has('ArrowUp')) {
+			state.facing_dir = 's'
+			pressed_dir = true
+		}
+
+		if (pressed_dir && state.facing_dir === prev_facing_dir) {
+			const next_pos =
+				state.facing_dir === 'e' ? {x: 8 + 2, y: 8} :
+				state.facing_dir === 'n' ? {x: 8, y: 8 - 2} :
+				state.facing_dir === 's' ? {x: 8, y: 8 + 2} :
+				state.facing_dir === 'w' ? {x: 8 - 2, y: 8} :
+				undefined
+			if (is_passable(state.view, state.npcs, {x: 8, y: 8}, next_pos)) {
+				state.moving = true
+				state.consecutive_moves += 1
+				state.animation_start_time = performance.now()
+				append_view(state.view, state.npcs, state.facing_dir, state.floor)
+			} else {
+				state.navigation = []
+			}
+		}
+
+		const move_time = (performance.now() - state.animation_start_time) / 1000 * (60 / 16)
+		norm_move_time = Math.min(Math.max(move_time, 0.0), 1.0)
+		if (state.moving) {
+			just_finished_moving = norm_move_time === 1.0
+
+			if (just_finished_moving) {
+				truncate_view(state.view, state.npcs, state.facing_dir)
+				state.moving = false
+				state.animation_start_time = null
+			} else {
+				offset =
+					state.facing_dir === 'e' ? {x: norm_move_time * tile_size * 2, y: 0} :
+					state.facing_dir === 'n' ? {x: 0, y: (1.0 - norm_move_time) * tile_size * 2} :
+					state.facing_dir === 's' ? {x: 0, y: norm_move_time * tile_size * 2} :
+					state.facing_dir === 'w' ? {x: (1.0 - norm_move_time) * tile_size * 2, y: 0} :
+					undefined
+				offset = {x: Math.round(offset.x), y: Math.round(offset.y)}
+			}
+		} else {
+			state.consecutive_moves = 0
+		}
+
+		if (just_finished_moving) {
+			const ladder_type = check_ladder_type(state.view, [8, 8])
+			if (ladder_type != 'none') {
+				state.navigation = []
+				const next_floor = get_next_floor(state.floor, ladder_type)
+				const complementary_ladder_type = ladder_type === 'up' ? 'down' : 'up'
+				const next_floor_ladders = ladders[next_floor][complementary_ladder_type]
+				const i = Math.floor(Math.random() * next_floor_ladders.length)
+				const random_ladder = next_floor_ladders[i]
+				const [view, npcs] = new_view(next_floor, random_ladder)
+				state.view = view
+				state.npcs = npcs
+				state.floor = next_floor
+			}
 		}
 	}
 
 	draw_view(state.view, offset)
 	draw_player(state.facing_dir, state.moving ? norm_move_time : 0, state.consecutive_moves % 2 == 0)
 	for (let npc of state.npcs) draw_npc(npc, offset)
+	if (state.dialog.length > 0) {
+		const flash_on = (animation_time % (36 / 60)) < (18 / 60)
+		const arrow = state.dialog.length > 2 && flash_on
+		const dialog_revealed = Math.floor(animation_time * 60)
+		state.dialog_segment_complete = draw_textbox(dialog_text, arrow, dialog_revealed)
+	}
 	requestAnimationFrame(run)
 }
 
