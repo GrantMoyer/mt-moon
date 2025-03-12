@@ -329,6 +329,21 @@ const npc_locations = {
 	],
 }
 
+const npc_dialogs = {
+	bug_catcher_e: ["ZUBAT is tough! But, it can be useful if you catch one."],
+	bug_catcher_w: ["I saw them! I'm sure they're from TEAM ROCKET!"],
+	fossil_nerd: ["Far away, on CINNABAR ISLAND, there's a POKéMON LAB.\nThey do research on regenerating fossils."],
+	grunt_e: ["POKéMON lived here long before people came."],
+	grunt_n: ["If you find a fossil, give it to me and scram!"],
+	grunt_s: ["Darn it all! My associates won't stand for this!"],
+	grunt_w: ["You made me mad! TEAM ROCKET will blacklist you!"],
+	hiker: ["Kids like you shouldn't be here!"],
+	lass_n: ["How do you get out of here?"],
+	lass_s: ["I heard there are some very rare fossils here."],
+	super_nerd: ["I have to find stronger POKéMON."],
+	youngster: ["I came down here to show off to girls."],
+}
+
 function get_next_floor(floor, direction) {
 	const floors = Object.keys(maps)
 	const offset = direction === 'up' ? -1 : 1
@@ -863,7 +878,9 @@ function shortest_path(view, npcs, from, to) {
 		for (let neighbor of neighbors) {
 			const neighbor_tile = {x: neighbor.x * 2, y: neighbor.y * 2}
 			const u_tile = {x: u.x * 2, y: u.y * 2}
-			const neighbor_dist = is_passable(view, npcs, u_tile, neighbor_tile) ? 1 : Infinity
+			const blocking_npcs = neighbor.x == to.x && neighbor.y == to.y ? [] : npcs
+			const neighbor_dist =
+				is_passable(view, blocking_npcs, u_tile, neighbor_tile) ? 1 : Infinity
 			const alt = dist[u.y][u.x] + neighbor_dist
 			if (neighbor_dist < dist[neighbor.y][neighbor.x]) {
 				dist[neighbor.y][neighbor.x] = alt
@@ -916,11 +933,17 @@ function text_width(text) {
 
 function flow_text(text, width) {
 	const flowed = []
-	const words = text.split(/\s+/)
+	const words = text.split(/(\s+)/)
 	let current_width = width
 	for (let word of words) {
 		const word_len = text_width(word)
-		if (current_width + 1 + word_len <= width) {
+		let m
+		if (m = word.match(/\n/g)) {
+			for (let _ of m.slice(1)) flowed.push("")
+			current_width = width
+		} else if (word.match(/^\s+$/)) {
+			continue
+		} else if (current_width + 1 + word_len <= width) {
 			flowed[flowed.length - 1] += ` ${word}`
 			current_width += 1 + word_len
 		} else {
@@ -1068,7 +1091,7 @@ function start_dialog(text) {
 }
 
 const interact_keys = new Set(['KeyZ', 'KeyX', 'Space', 'Enter'])
-document.body.addEventListener('keydown', e => state.keys.add(e.code))
+document.body.addEventListener('keydown', e => e.repeat || state.keys.add(e.code))
 document.body.addEventListener('keyup', e => state.keys.delete(e.code))
 document.body.addEventListener('click', e => state.click = {x: e.offsetX, y: e.offsetY})
 
@@ -1083,6 +1106,9 @@ function run() {
 	));
 	document.documentElement.style.setProperty('--scale', `${scale}`);
 
+	const interact_pressed = state.keys.intersection(interact_keys).size > 0 || state.click !== null
+	state.keys = state.keys.difference(interact_keys)
+
 	let just_finished_moving = false
 	let offset = {x: 0, y: 0}
 
@@ -1094,7 +1120,8 @@ function run() {
 
 	const dialog_text = state.dialog.slice(0, 2).join('\n')
 	if (state.dialog.length > 0) {
-		if (state.dialog_segment_complete && state.keys.intersection(interact_keys).size > 0) {
+		state.click = null
+		if (state.dialog_segment_complete && interact_pressed) {
 			state.dialog.splice(0, 2)
 			state.animation_start_time = state.dialog.length > 0 ? performance.now() : null
 		}
@@ -1108,6 +1135,7 @@ function run() {
 			state.navigation = shortest_path(state.view, state.npcs, {x: 4, y: 4}, pos) ?? []
 		}
 
+		let try_interact = false
 		if (state.moving) {
 			state.click = null
 		} else if (state.navigation.length > 0) {
@@ -1126,14 +1154,16 @@ function run() {
 		} else if (state.keys.has('ArrowDown') && !state.keys.has('ArrowUp')) {
 			state.facing_dir = 's'
 			pressed_dir = true
+		} else if (interact_pressed) {
+			try_interact = true
 		}
 
 		if (pressed_dir && state.facing_dir === prev_facing_dir) {
 			const next_pos =
-				state.facing_dir === 'e' ? {x: 8 + 2, y: 8} :
-				state.facing_dir === 'n' ? {x: 8, y: 8 - 2} :
-				state.facing_dir === 's' ? {x: 8, y: 8 + 2} :
-				state.facing_dir === 'w' ? {x: 8 - 2, y: 8} :
+				state.facing_dir === 'e' ? {x: 10, y: 8} :
+				state.facing_dir === 'n' ? {x: 8, y: 6} :
+				state.facing_dir === 's' ? {x: 8, y: 10} :
+				state.facing_dir === 'w' ? {x: 6, y: 8} :
 				undefined
 			if (is_passable(state.view, state.npcs, {x: 8, y: 8}, next_pos)) {
 				state.moving = true
@@ -1142,6 +1172,27 @@ function run() {
 				append_view(state.view, state.npcs, state.facing_dir, state.floor)
 			} else {
 				state.navigation = []
+				try_interact = true
+			}
+		}
+
+		if (try_interact) {
+			const interact_pos =
+				state.facing_dir === 'e' ? {x: 5, y: 4} :
+				state.facing_dir === 'n' ? {x: 4, y: 3} :
+				state.facing_dir === 's' ? {x: 4, y: 5} :
+				state.facing_dir === 'w' ? {x: 3, y: 4} :
+				undefined
+			const interact_npc = state
+				.npcs.find(npc => npc.x === interact_pos.x && npc.y === interact_pos.y)
+			if (interact_npc !== undefined) {
+				interact_npc.dir =
+					state.facing_dir === 'e' ? 'w' :
+					state.facing_dir === 'n' ? 's' :
+					state.facing_dir === 's' ? 'n' :
+					state.facing_dir === 'w' ? 'e' :
+					undefined
+				start_dialog(npc_dialogs[interact_npc.name][0])
 			}
 		}
 
