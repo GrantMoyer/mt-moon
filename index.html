@@ -782,6 +782,9 @@ const player_sheet = await fetch('assets/player.png')
 const npc_sheet = await fetch('assets/npc.png')
 	.then(res => res.blob())
 	.then(blob => window.createImageBitmap(blob))
+const dialog_sheet = await fetch('assets/dialog.png')
+	.then(res => res.blob())
+	.then(blob => window.createImageBitmap(blob))
 
 const walkable_tiles = [0, 1, 4, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 33];
 function is_passable(view, npcs, from, to) {
@@ -882,26 +885,93 @@ function shortest_path(view, npcs, from, to) {
 	}
 }
 
-function get_offset(i) {
-	const width = tile_sheet.width / tile_size
+function get_pos_in_sheet(sheet, i) {
+	const width = sheet.width / tile_size
 	const row = Math.floor(i / width)
 	const col = i % width
 	return [col * tile_size, row * tile_size]
 }
 
-function draw_tile(i, r, c) {
-	const [tx, ty] = get_offset(i)
+const characters = [
+	"A",  "B",  "C", "D",  "E",  "F", "G", "H", "I",  "J",  "K",  "L",  "M",  "N",  "O",  "P",
+	"Q",  "R",  "S", "T",  "U",  "V", "W", "X", "Y",  "Z",  "(",  ")",  ":",  ";",  "[",  "]",
+	"a",  "b",  "c", "d",  "e",  "f", "g", "h", "i",  "j",  "k",  "l",  "m",  "n",  "o",  "p",
+	"q",  "r",  "s", "t",  "u",  "v", "w", "x", "y",  "z",  "é", "'d", "'l", "'s", "'t", "'v",
+	"'", "ᴾₖ", "ᴹₙ", "-", "'r", "'m", "?", "!", ".", "ァ", "ゥ", "ェ",  "▷",  "▶",  "▼",  "♂",
+	"$",  "×",  "·", "/",  ",",  "♀", "0", "1", "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9",
+	"␄",  "╗",  "╔", "╚",  "╝",  "║", "═", " ",
+]
+const char_indices = new Map(characters.entries().map(([i, c]) => [c, i]))
+
+function draw_tile(sheet, i, r, c, offset={x: 0, y: 0}) {
+	const [tx, ty] = get_pos_in_sheet(sheet, i)
 	const [x, y] = [c * tile_size, r * tile_size]
+	ctx.drawImage(
+		sheet,
+		tx,
+		ty,
+		tile_size,
+		tile_size,
+		x - offset.x,
+		y - offset.y,
+		tile_size,
+		tile_size
+	)
+}
+
+function draw_textbox_border(r, c, width, height) {
+	ctx.fillStyle = 'white'
+	ctx.fillRect(c * tile_size, r * tile_size, width * tile_size, height * tile_size)
+
+	const rr = r + height - 1
+	const cc = c + width - 1
+
+	draw_tile(dialog_sheet, char_indices.get("╔"), r, c)
+	draw_tile(dialog_sheet, char_indices.get("╗"), r, cc)
+	draw_tile(dialog_sheet, char_indices.get("╚"), rr, c)
+	draw_tile(dialog_sheet, char_indices.get("╝"), rr, cc)
+	for (let i = c + 1; i < cc; ++i) {
+		draw_tile(dialog_sheet, char_indices.get("═"), r, i)
+		draw_tile(dialog_sheet, char_indices.get("═"), rr, i)
+	}
+	for (let i = r + 1; i < rr; ++i) {
+		draw_tile(dialog_sheet, char_indices.get("║"), i, c)
+		draw_tile(dialog_sheet, char_indices.get("║"), i, cc)
+	}
+}
+
+function draw_text(text, r, c) {
+	let orig_c = c
+	while (text.length > 0) {
+		if (text[0] === '\n') {
+			text = text.substring(1)
+			++r
+			c = orig_c
+		} else {
+			let i = char_indices.get(text.substring(0, 2));
+			if (i !== undefined) {
+				text = text.substring(2)
+			} else {
+				i = char_indices.get(text[0])
+				text = text.substring(1)
+			}
+			draw_tile(dialog_sheet, i, r, c)
+			++c
+		}
+	}
+}
+
+function draw_textbox(text, arrow=false) {
+	const row = 12
+	draw_textbox_border(row, 0, screen_width, screen_height - row)
+	draw_text(text.replace("\n", "\n\n"), row + 2, 1)
+	if (arrow) draw_tile(dialog_sheet, char_indices.get("▼"), screen_height - 2, screen_width - 2)
 }
 
 function draw_view(view, offset) {
-	for (let r = 0; r < view.length; ++r) {
-		for (let c = 0; c < view[r].length; ++c) {
-			const [tx, ty] = get_offset(view[r][c])
-			const [x, y] = [c * tile_size - offset.x, r * tile_size - offset.y]
-			ctx.drawImage(tile_sheet, tx, ty, tile_size, tile_size, x, y, tile_size, tile_size)
-		}
-	}
+	for (let r = 0; r < view.length; ++r)
+		for (let c = 0; c < view[r].length; ++c)
+			draw_tile(tile_sheet, view[r][c], r, c, offset)
 }
 
 function draw_npc(npc, offset) {
