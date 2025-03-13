@@ -332,7 +332,7 @@ const npc_locations = {
 const npc_dialogs = {
 	bug_catcher_e: ["ZUBAT is tough! But, it can be useful if you catch one."],
 	bug_catcher_w: ["I saw them! I'm sure they're from TEAM ROCKET!"],
-	fossil_nerd: ["Far away, on CINNABAR ISLAND, there's a POKéMON LAB.\nThey do research on regenerating fossils."],
+	fossil_nerd: ["Far away, on CINNABAR ISLAND, there's a POKéMON LAB.\x1eThey do research on regenerating fossils."],
 	grunt_e: ["POKéMON lived here long before people came."],
 	grunt_n: ["If you find a fossil, give it to me and scram!"],
 	grunt_s: ["Darn it all! My associates won't stand for this!"],
@@ -949,12 +949,14 @@ function concat_encoded_text(...texts) {
 function flow_text(text, width) {
 	const flowed = []
 	const enc_space = encode_text(" ")
-	const words = text.split(/(\s+)/)
+	const words = text.split(/(\s+|\s*[\n\x1e])/)
 	let current_width = width
 	for (let word of words) {
-		let m
-		if (m = word.match(/\n/g)) {
-			for (let _ of m.slice(1)) flowed.push("")
+		if (word.endsWith('\n')) {
+			current_width = width
+			continue
+		} else if (word.endsWith('\x1e')) {
+			flowed.push(null)
 			current_width = width
 			continue
 		} else if (word.match(/\s/)) {
@@ -1029,6 +1031,7 @@ function draw_textbox(text, arrow=false, max_chars=Infinity, scroll=0) {
 	let first_line = Math.floor(scroll / 2)
 	for (let i = first_line; i < text.length && i < first_line + 2; ++i) {
 		const line = text[i]
+		if (line === null) continue
 		const line_row = row + 2 + 2 * i - scroll
 		const line_complete = draw_encoded_text(line, line_row, 1, max_chars)
 		text_complete &&= line_complete
@@ -1145,8 +1148,14 @@ function run() {
 		state.click = null
 		if (state.dialog_state === 'segment_complete' && interact_pressed) {
 			const remaining_lines = state.dialog.length - state.dialog_lines_read
+			const next_two_lines = state.dialog
+				.slice(state.dialog_lines_read + 1, state.dialog_lines_read + 3)
 			if (remaining_lines <= 2) {
 				stop_dialog()
+			} else if (next_two_lines.includes(null)) {
+				state.animation_start_time = performance.now()
+				state.dialog_state = 'reveal'
+				state.dialog_lines_read = state.dialog.indexOf(null, state.dialog_lines_read) + 1
 			} else {
 				state.animation_start_time = performance.now()
 				state.dialog_state = 'scroll'
@@ -1272,7 +1281,9 @@ function run() {
 		const remaining_lines = state.dialog.length - state.dialog_lines_read
 		const arrow = remaining_lines > 2 && flash_on
 		const already_revealed =
-			state.dialog_lines_read > 0 ? state.dialog[state.dialog_lines_read].length : 0
+			state.dialog_lines_read > 0 && state.dialog[state.dialog_lines_read - 1] !== null
+				? state.dialog[state.dialog_lines_read].length
+				: 0
 		const dialog_revealed = Math.floor(animation_time * 60) + already_revealed
 		const segment_complete =
 			draw_textbox(state.dialog, arrow, dialog_revealed, state.dialog_lines_read * 2)
@@ -1293,7 +1304,6 @@ function run() {
 	}
 	requestAnimationFrame(run)
 }
-
 
 requestAnimationFrame(run)
 
