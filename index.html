@@ -920,35 +920,55 @@ const characters = [
 ]
 const char_indices = new Map(characters.entries().map(([i, c]) => [c, i]))
 
-function text_width(text) {
-	let width = 0
-	while (text.length > 0) {
-		text = char_indices.get(text.substring(0, 2)) !== undefined
-			? text.substring(2)
-			: text.substring(1)
-		++width
+function encode_text(text) {
+	const buffer = new ArrayBuffer(text.length)
+	const encoded = new Uint8Array(buffer)
+	let processed = 0;
+	let chars_written = 0
+	while (processed < text.length) {
+		const i = char_indices.get(text.substring(processed, processed + 2))
+			?? char_indices.get(text[processed])
+		if (i !== undefined) encoded[chars_written++] = i
+		processed += i === undefined ? 1 : characters[i].length
 	}
-	return width
+	const finialized_buffer = buffer.transferToFixedLength(chars_written)
+	return new Uint8Array(finialized_buffer)
+}
+
+function concat_encoded_text(...texts) {
+	const length = texts.reduce((acc, text) => acc + text.length, 0)
+	const concat = new Uint8Array(length)
+	let offset = 0
+	for (let text of texts) {
+		concat.set(text, offset)
+		offset += text.length
+	}
+	return concat
 }
 
 function flow_text(text, width) {
 	const flowed = []
+	const enc_space = encode_text(" ")
 	const words = text.split(/(\s+)/)
 	let current_width = width
 	for (let word of words) {
-		const word_len = text_width(word)
 		let m
 		if (m = word.match(/\n/g)) {
 			for (let _ of m.slice(1)) flowed.push("")
 			current_width = width
-		} else if (word.match(/^\s+$/)) {
 			continue
-		} else if (current_width + 1 + word_len <= width) {
-			flowed[flowed.length - 1] += ` ${word}`
-			current_width += 1 + word_len
+		} else if (word.match(/\s/)) {
+			continue
+		}
+
+		const enc_word = encode_text(word)
+		if (current_width + 1 + enc_word.length <= width) {
+			flowed[flowed.length - 1] =
+				concat_encoded_text(flowed[flowed.length - 1], enc_space, enc_word)
+			current_width += enc_space.length + enc_word.length
 		} else {
-			flowed.push(word)
-			current_width = word_len
+			flowed.push(enc_word)
+			current_width = enc_word.length
 		}
 	}
 	return flowed
@@ -991,35 +1011,29 @@ function draw_textbox_border(r, c, width, height) {
 	}
 }
 
-function draw_text(text, r, c, max_chars=Infinity) {
-	let orig_c = c
+function draw_encoded_text(text, r, c, max_chars=Infinity) {
 	let drawn_chars = 0
-	while (text.length > 0) {
+	for (let i of text) {
 		if (drawn_chars >= max_chars) return false
-		if (text[0] === '\n') {
-			text = text.substring(1)
-			++r
-			c = orig_c
-		} else {
-			let i = char_indices.get(text.substring(0, 2));
-			if (i !== undefined) {
-				text = text.substring(2)
-			} else {
-				i = char_indices.get(text[0])
-				text = text.substring(1)
-			}
-			draw_tile(dialog_sheet, i, r, c)
-			++drawn_chars
-			++c
-		}
+		draw_tile(dialog_sheet, i, r, c)
+		++drawn_chars
+		++c
 	}
 	return true
 }
 
-function draw_textbox(text, arrow=false, max_chars=Infinity) {
+function draw_textbox(text, arrow=false, max_chars=Infinity, scroll=0) {
 	const row = 12
 	draw_textbox_border(row, 0, screen_width, screen_height - row)
-	const text_complete = draw_text(text.replaceAll("\n", "\n\n"), row + 2, 1, max_chars)
+	let text_complete = true
+	let first_line = Math.floor(scroll / 2)
+	for (let i = first_line; i < text.length && i < first_line + 2; ++i) {
+		const line = text[i]
+		const line_row = row + 2 + 2 * i - scroll
+		const line_complete = draw_encoded_text(line, line_row, 1, max_chars)
+		text_complete &&= line_complete
+		max_chars -= line.length
+	}
 	if (arrow && text_complete) draw_tile(dialog_sheet, char_indices.get("▼"), screen_height - 2, screen_width - 2)
 	return text_complete
 }
@@ -1081,13 +1095,22 @@ const state = {
 	floor: 'f1',
 	navigation: [],
 	dialog: [],
-	dialog_segment_complete: false,
+	dialog_state: 'empty',
+	dialog_lines_read: 0,
 }
 
 function start_dialog(text) {
 	state.dialog = flow_text(text, screen_width - 3)
 	state.animation_start_time = performance.now()
-	state.dialog_segment_complete = false
+	state.dialog_lines_read = 0
+	state.dialog_state = 'reveal'
+}
+
+function stop_dialog() {
+	state.dialog = []
+	state.animation_start_time = null
+	state.dialog_lines_read = 0
+	state.dialog_state = 'empty'
 }
 
 const interact_keys = new Set(['KeyZ', 'KeyX', 'Space', 'Enter'])
@@ -1115,15 +1138,19 @@ function run() {
 	let prev_facing_dir = state.facing_dir;
 	let pressed_dir = false;
 
-	const animation_time = (performance.now() - state.animation_start_time) / 1000
+	let animation_time = (performance.now() - state.animation_start_time) / 1000
 	let norm_move_time
 
-	const dialog_text = state.dialog.slice(0, 2).join('\n')
 	if (state.dialog.length > 0) {
 		state.click = null
-		if (state.dialog_segment_complete && interact_pressed) {
-			state.dialog.splice(0, 2)
-			state.animation_start_time = state.dialog.length > 0 ? performance.now() : null
+		if (state.dialog_state === 'segment_complete' && interact_pressed) {
+			const remaining_lines = state.dialog.length - state.dialog_lines_read
+			if (remaining_lines <= 2) {
+				stop_dialog()
+			} else {
+				state.animation_start_time = performance.now()
+				state.dialog_state = 'scroll'
+			}
 		}
 	} else {
 		if (!state.moving && state.click !== null) {
@@ -1235,17 +1262,38 @@ function run() {
 		}
 	}
 
+	animation_time = (performance.now() - state.animation_start_time) / 1000
+
 	draw_view(state.view, offset)
 	draw_player(state.facing_dir, state.moving ? norm_move_time : 0, state.consecutive_moves % 2 == 0)
 	for (let npc of state.npcs) draw_npc(npc, offset)
-	if (state.dialog.length > 0) {
+	if (['reveal', 'segment_complete'].includes(state.dialog_state)) {
 		const flash_on = (animation_time % (36 / 60)) < (18 / 60)
-		const arrow = state.dialog.length > 2 && flash_on
-		const dialog_revealed = Math.floor(animation_time * 60)
-		state.dialog_segment_complete = draw_textbox(dialog_text, arrow, dialog_revealed)
+		const remaining_lines = state.dialog.length - state.dialog_lines_read
+		const arrow = remaining_lines > 2 && flash_on
+		const already_revealed =
+			state.dialog_lines_read > 0 ? state.dialog[state.dialog_lines_read].length : 0
+		const dialog_revealed = Math.floor(animation_time * 60) + already_revealed
+		const segment_complete =
+			draw_textbox(state.dialog, arrow, dialog_revealed, state.dialog_lines_read * 2)
+		if (segment_complete) state.dialog_state = 'segment_complete'
+	} else if (state.dialog_state === 'scroll') {
+		const scroll_increment = Math.min(Math.floor(animation_time * 60 / 6), 2.0)
+		const scroll_rows = state.dialog_lines_read * 2 + scroll_increment
+		const max_chars = state.dialog.slice(
+			state.dialog_lines_read + Math.floor(scroll_increment / 2),
+			state.dialog_lines_read + 2
+		).reduce((acc, text) => acc + text.length, 0)
+		draw_textbox(state.dialog, false, max_chars, scroll_rows)
+		if (scroll_increment === 2) {
+			state.dialog_lines_read += 1
+			state.dialog_state = 'reveal'
+			state.animation_start_time = state.dialog.length > 0 ? performance.now() : null
+		}
 	}
 	requestAnimationFrame(run)
 }
+
 
 requestAnimationFrame(run)
 
