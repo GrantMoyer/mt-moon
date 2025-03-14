@@ -1086,6 +1086,23 @@ function draw_textbox(text, arrow=false, max_chars=Infinity, scroll=0) {
 	return text_complete
 }
 
+function draw_choicebox(choices, selected) {
+	const height = choices.length * 2 + 1
+	const width = Math.max(...choices.map(choice => choice.length)) + 3
+	const row = Math.max(12 - height, 0)
+	const col = screen_width - width
+	draw_textbox_border(row, col, height, width)
+
+	for (let i = 0; i < choices.length; ++i) {
+		const choice = choices[i]
+		const choice_row = row + i * 2 + 1
+		const choice_col = col + 1
+		const prefix = i === selected ? char_indices.get("▶") : char_indices.get(" ")
+		draw_tile(dialog_sheet, prefix, choice_row, choice_col)
+		draw_encoded_text(choice, choice_row, choice_col + 1)
+	}
+}
+
 function draw_view(view, offset) {
 	for (let r = 0; r < view.length; ++r)
 		for (let c = 0; c < view[r].length; ++c)
