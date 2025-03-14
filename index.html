@@ -330,18 +330,53 @@ const npc_locations = {
 }
 
 const npc_dialogs = {
-	bug_catcher_e: ["ZUBAT is tough! But, it can be useful if you catch one."],
-	bug_catcher_w: ["I saw them! I'm sure they're from TEAM ROCKET!"],
-	fossil_nerd: ["Far away, on CINNABAR ISLAND, there's a POKéMON LAB.\x1eThey do research on regenerating fossils."],
-	grunt_e: ["POKéMON lived here long before people came."],
-	grunt_n: ["If you find a fossil, give it to me and scram!"],
-	grunt_s: ["Darn it all! My associates won't stand for this!"],
-	grunt_w: ["You made me mad! TEAM ROCKET will blacklist you!"],
-	hiker: ["Kids like you shouldn't be here!"],
-	lass_n: ["How do you get out of here?"],
-	lass_s: ["I heard there are some very rare fossils here."],
-	super_nerd: ["I have to find stronger POKéMON."],
-	youngster: ["I came down here to show off to girls."],
+	bug_catcher_e: [
+		"ZUBAT is tough! But, it can be useful if you catch one.",
+		"I've never actually seen a ZUBAT though.\x1eHave you?",
+	],
+	bug_catcher_w: [
+		"I saw them! I'm sure they're from TEAM ROCKET!",
+		"Is TEAM ROCKET evil?",
+	],
+	fossil_nerd: [
+		`Far away, on CINNABAR ISLAND, there's a POKéMON LAB.\x1eThey do research on
+		regenerating fossils.`,
+		"The POKéMON LAB uses advanced AGI models to reconstruct extinct organisms.",
+	],
+	grunt_e: [
+		"POKéMON lived here long before people came.",
+		"Machines will be here long after people are gone.",
+	],
+	grunt_n: [
+		"If you find a fossil, give it to me and scram!",
+	],
+	grunt_s: [
+		"Darn it all! My associates won't stand for this!",
+	],
+	grunt_w: [
+		"You made me mad! TEAM ROCKET will blacklist you!",
+	],
+	hiker: [
+		"Kids like you shouldn't be here!",
+		"Nobody should be here!\x1eBut, especially not kids!",
+	],
+	lass_n: [
+		"How do you get out of here?",
+		"Does something seem off about MT. MOON to you?",
+	],
+	lass_s: [
+		"I heard there are some very rare fossils here.",
+		"What's so great about some rock, anyway?",
+	],
+	super_nerd: [
+		"I have to find stronger POKéMON.",
+		"These POKéMON are obsolete."
+	],
+	youngster: [
+		"I came down here to show off to girls.",
+		"Have you seen the blue-haired girl?",
+		"Maybe I should go talk to her.",
+	],
 }
 
 function get_next_floor(floor, direction) {
@@ -577,9 +612,11 @@ const default_subs = {
 }
 
 function remove(arr, pred) {
+	const removed = []
 	for (let i = arr.length - 1; i >= 0; --i)
 		if (pred(arr[i]))
-			arr.splice(i, 1)
+			removed.push(...arr.splice(i, 1))
+	return removed
 }
 
 function append_view(view, npcs, dir, floor) {
@@ -689,6 +726,7 @@ function append_view(view, npcs, dir, floor) {
 					dir: npc.dir,
 					name: npc.name,
 					sprite: npc.sprite,
+					spoken_to: false,
 				})
 			break
 		case 'n':
@@ -702,6 +740,7 @@ function append_view(view, npcs, dir, floor) {
 					dir: npc.dir,
 					name: npc.name,
 					sprite: npc.sprite,
+					spoken_to: false,
 				})
 			break
 		case 'w':
@@ -717,6 +756,7 @@ function append_view(view, npcs, dir, floor) {
 					dir: npc.dir,
 					name: npc.name,
 					sprite: npc.sprite,
+					spoken_to: false,
 				})
 			break
 		case 's':
@@ -729,6 +769,7 @@ function append_view(view, npcs, dir, floor) {
 					dir: npc.dir,
 					name: npc.name,
 					sprite: npc.sprite,
+					spoken_to: false,
 				})
 			break
 	}
@@ -759,7 +800,10 @@ function truncate_view(view, npcs, dir) {
 			for (let npc of npcs) npc.y -= 1
 			break
 	}
-	remove(npcs, ({x, y}) => !(0 <= x && x < screen_width / 2 && 0 <= y && y < screen_height / 2))
+	return remove(
+		npcs,
+		({x, y}) => !(0 <= x && x < screen_width / 2 && 0 <= y && y < screen_height / 2)
+	)
 }
 
 function new_view(floor, offset) {
@@ -781,6 +825,7 @@ function new_view(floor, offset) {
 			dir: npc.dir,
 			name: npc.name,
 			sprite: npc.sprite,
+			spoken_to: false,
 		}))
 	return [view, npcs]
 }
@@ -959,7 +1004,7 @@ function flow_text(text, width) {
 			flowed.push(null)
 			current_width = width
 			continue
-		} else if (word.match(/\s/)) {
+		} else if (word.match(/\s/) || word.length === 0) {
 			continue
 		}
 
@@ -992,7 +1037,7 @@ function draw_tile(sheet, i, r, c, offset={x: 0, y: 0}) {
 	)
 }
 
-function draw_textbox_border(r, c, width, height) {
+function draw_textbox_border(r, c, height, width) {
 	ctx.fillStyle = 'white'
 	ctx.fillRect(c * tile_size, r * tile_size, width * tile_size, height * tile_size)
 
@@ -1026,7 +1071,7 @@ function draw_encoded_text(text, r, c, max_chars=Infinity) {
 
 function draw_textbox(text, arrow=false, max_chars=Infinity, scroll=0) {
 	const row = 12
-	draw_textbox_border(row, 0, screen_width, screen_height - row)
+	draw_textbox_border(row, 0, screen_height - row, screen_width)
 	let text_complete = true
 	let first_line = Math.floor(scroll / 2)
 	for (let i = first_line; i < text.length && i < first_line + 2; ++i) {
@@ -1100,6 +1145,7 @@ const state = {
 	dialog: [],
 	dialog_state: 'empty',
 	dialog_lines_read: 0,
+	dialogs_seen: Object.fromEntries(Object.keys(npc_dialogs).map(name => [name, 0])),
 }
 
 function start_dialog(text) {
@@ -1228,7 +1274,12 @@ function run() {
 					state.facing_dir === 's' ? 'n' :
 					state.facing_dir === 'w' ? 'e' :
 					undefined
-				start_dialog(npc_dialogs[interact_npc.name][0])
+				const dialog_index = Math.min(
+					state.dialogs_seen[interact_npc.name],
+					npc_dialogs[interact_npc.name].length - 1,
+				)
+				start_dialog(npc_dialogs[interact_npc.name][dialog_index])
+				interact_npc.spoken_to = true
 			}
 		}
 
@@ -1238,7 +1289,8 @@ function run() {
 			just_finished_moving = norm_move_time === 1.0
 
 			if (just_finished_moving) {
-				truncate_view(state.view, state.npcs, state.facing_dir)
+				const removed_npcs = truncate_view(state.view, state.npcs, state.facing_dir)
+				for (const npc of removed_npcs) if (npc.spoken_to) ++state.dialogs_seen[npc.name]
 				state.moving = false
 				state.animation_start_time = null
 			} else {
@@ -1264,6 +1316,7 @@ function run() {
 				const i = Math.floor(Math.random() * next_floor_ladders.length)
 				const random_ladder = next_floor_ladders[i]
 				const [view, npcs] = new_view(next_floor, random_ladder)
+				for (const npc of state.npcs) if (npc.spoken_to) ++state.dialogs_seen[npc.name]
 				state.view = view
 				state.npcs = npcs
 				state.floor = next_floor
