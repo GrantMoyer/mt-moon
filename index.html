@@ -85,6 +85,9 @@ body {display: flex; justify-content: center; align-items: center; background: v
 }
 </style>
 <script type=module>
+const screen_width = 20
+const screen_height = 18
+
 const maps = {
 	f1: [
 		[5,4,4,3,5,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,4,3],
@@ -309,6 +312,43 @@ const ladders = {
 	},
 }
 
+const characters = [
+	"A",  "B",  "C", "D",  "E",  "F", "G", "H", "I",  "J",  "K",  "L",  "M",  "N",  "O",  "P",
+	"Q",  "R",  "S", "T",  "U",  "V", "W", "X", "Y",  "Z",  "(",  ")",  ":",  ";",  "[",  "]",
+	"a",  "b",  "c", "d",  "e",  "f", "g", "h", "i",  "j",  "k",  "l",  "m",  "n",  "o",  "p",
+	"q",  "r",  "s", "t",  "u",  "v", "w", "x", "y",  "z",  "é", "'d", "'l", "'s", "'t", "'v",
+	"'", "ᴾₖ", "ᴹₙ", "-", "'r", "'m", "?", "!", ".", "ァ", "ゥ", "ェ",  "▷",  "▶",  "▼",  "♂",
+	"$",  "×",  "·", "/",  ",",  "♀", "0", "1", "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9",
+	"␄",  "╗",  "╔", "╚",  "╝",  "║", "═", " ",
+]
+const char_indices = new Map(characters.entries().map(([i, c]) => [c, i]))
+
+function encode_text(text) {
+	const buffer = new ArrayBuffer(text.length)
+	const encoded = new Uint8Array(buffer)
+	let processed = 0
+	let chars_written = 0
+	while (processed < text.length) {
+		const i = char_indices.get(text.substring(processed, processed + 2))
+			?? char_indices.get(text[processed])
+		if (i !== undefined) encoded[chars_written++] = i
+		processed += i === undefined ? 1 : characters[i].length
+	}
+	const finialized_buffer = buffer.transferToFixedLength(chars_written)
+	return new Uint8Array(finialized_buffer)
+}
+
+function concat_encoded_text(...texts) {
+	const length = texts.reduce((acc, text) => acc + text.length, 0)
+	const concat = new Uint8Array(length)
+	let offset = 0
+	for (let text of texts) {
+		concat.set(text, offset)
+		offset += text.length
+	}
+	return concat
+}
+
 const npc_locations = {
 	f1: [
 		{x: 5, y: 6, dir: 's', name: 'hiker', sprite: 0},
@@ -329,55 +369,60 @@ const npc_locations = {
 	],
 }
 
-const npc_dialogs = {
+const npc_dialogs = flow_dialog_tree(screen_width - 3, {
 	bug_catcher_e: [
-		"ZUBAT is tough! But, it can be useful if you catch one.",
-		"I've never actually seen a ZUBAT though.\x1eHave you?",
+		["ZUBAT is tough! But, it can be useful if you catch one."],
+		["I've never actually seen a ZUBAT though.", "Have you?", {
+			YES: ["Are you sure?"],
+			NO: ["I wonder if they're even real."],
+		}],
 	],
 	bug_catcher_w: [
-		"I saw them! I'm sure they're from TEAM ROCKET!",
-		"Is TEAM ROCKET evil?",
+		["I saw them! I'm sure they're from TEAM ROCKET!"],
+		["Is TEAM ROCKET evil?"],
 	],
 	fossil_nerd: [
-		`Far away, on CINNABAR ISLAND, there's a POKéMON LAB.\x1eThey do research on
-		regenerating fossils.`,
-		"The POKéMON LAB uses advanced AGI models to reconstruct extinct organisms.",
+		[
+			"Far away, on CINNABAR ISLAND, there's a POKéMON LAB.",
+			"They do research on regenerating fossils.",
+		],
+		["The POKéMON LAB uses advanced AGI models to reconstruct extinct organisms."],
 	],
 	grunt_e: [
-		"POKéMON lived here long before people came.",
-		"Machines will be here long after people are gone.",
+		["POKéMON lived here long before people came."],
+		["Machines will be here long after people are gone."],
 	],
 	grunt_n: [
-		"If you find a fossil, give it to me and scram!",
+		["If you find a fossil, give it to me and scram!"],
 	],
 	grunt_s: [
-		"Darn it all! My associates won't stand for this!",
+		["Darn it all! My associates won't stand for this!"],
 	],
 	grunt_w: [
-		"You made me mad! TEAM ROCKET will blacklist you!",
+		["You made me mad! TEAM ROCKET will blacklist you!"],
 	],
 	hiker: [
-		"Kids like you shouldn't be here!",
-		"Nobody should be here!\x1eBut, especially not kids!",
+		["Kids like you shouldn't be here!"],
+		["Nobody should be here!", "But, especially not kids!"],
 	],
 	lass_n: [
-		"How do you get out of here?",
-		"Does something seem off about MT. MOON to you?",
+		["How do you get out of here?"],
+		["Does something seem off about MT. MOON to you?"],
 	],
 	lass_s: [
-		"I heard there are some very rare fossils here.",
-		"What's so great about some rock, anyway?",
+		["I heard there are some very rare fossils here."],
+		["What's so great about some rock, anyway?"],
 	],
 	super_nerd: [
-		"I have to find stronger POKéMON.",
-		"These POKéMON are obsolete."
+		["I have to find stronger POKéMON."],
+		["These POKéMON are obsolete."],
 	],
 	youngster: [
-		"I came down here to show off to girls.",
-		"Have you seen the blue-haired girl?",
-		"Maybe I should go talk to her.",
+		["I came down here to show off to girls."],
+		["Have you seen the blue-haired girl?"],
+		["Maybe I should go talk to her."],
 	],
-}
+})
 
 function get_next_floor(floor, direction) {
 	const floors = Object.keys(maps)
@@ -385,9 +430,6 @@ function get_next_floor(floor, direction) {
 	const next_floor_index = floors.findIndex(e => e === floor) + offset
 	return floors[next_floor_index]
 }
-
-const screen_width = 20
-const screen_height = 18
 
 function gen_transition_mappings(map, npcs) {
 	const forbidden_tiles = [33]
@@ -954,43 +996,6 @@ function get_pos_in_sheet(sheet, i) {
 	return [col * tile_size, row * tile_size]
 }
 
-const characters = [
-	"A",  "B",  "C", "D",  "E",  "F", "G", "H", "I",  "J",  "K",  "L",  "M",  "N",  "O",  "P",
-	"Q",  "R",  "S", "T",  "U",  "V", "W", "X", "Y",  "Z",  "(",  ")",  ":",  ";",  "[",  "]",
-	"a",  "b",  "c", "d",  "e",  "f", "g", "h", "i",  "j",  "k",  "l",  "m",  "n",  "o",  "p",
-	"q",  "r",  "s", "t",  "u",  "v", "w", "x", "y",  "z",  "é", "'d", "'l", "'s", "'t", "'v",
-	"'", "ᴾₖ", "ᴹₙ", "-", "'r", "'m", "?", "!", ".", "ァ", "ゥ", "ェ",  "▷",  "▶",  "▼",  "♂",
-	"$",  "×",  "·", "/",  ",",  "♀", "0", "1", "2",  "3",  "4",  "5",  "6",  "7",  "8",  "9",
-	"␄",  "╗",  "╔", "╚",  "╝",  "║", "═", " ",
-]
-const char_indices = new Map(characters.entries().map(([i, c]) => [c, i]))
-
-function encode_text(text) {
-	const buffer = new ArrayBuffer(text.length)
-	const encoded = new Uint8Array(buffer)
-	let processed = 0
-	let chars_written = 0
-	while (processed < text.length) {
-		const i = char_indices.get(text.substring(processed, processed + 2))
-			?? char_indices.get(text[processed])
-		if (i !== undefined) encoded[chars_written++] = i
-		processed += i === undefined ? 1 : characters[i].length
-	}
-	const finialized_buffer = buffer.transferToFixedLength(chars_written)
-	return new Uint8Array(finialized_buffer)
-}
-
-function concat_encoded_text(...texts) {
-	const length = texts.reduce((acc, text) => acc + text.length, 0)
-	const concat = new Uint8Array(length)
-	let offset = 0
-	for (let text of texts) {
-		concat.set(text, offset)
-		offset += text.length
-	}
-	return concat
-}
-
 function flow_text(text, width) {
 	const flowed = []
 	const enc_space = encode_text(" ")
@@ -1019,6 +1024,14 @@ function flow_text(text, width) {
 		}
 	}
 	return flowed
+}
+
+function flow_dialog_tree(width, node) {
+	if (node instanceof Array) return node.map(child => flow_dialog_tree(width, child))
+	else if (typeof node === 'string') return flow_text(node, width)
+	else return Object.fromEntries(
+		Object.entries(node).map(([key, child]) => [key, flow_dialog_tree(width, child)])
+	)
 }
 
 function draw_tile(sheet, i, r, c, offset={x: 0, y: 0}) {
@@ -1160,23 +1173,36 @@ const state = {
 	floor: 'f1',
 	navigation: [],
 	dialog: [],
+	dialog_prev: [],
+	dialog_choice: 0,
 	dialog_state: 'empty',
 	dialog_lines_read: 0,
 	dialogs_seen: Object.fromEntries(Object.keys(npc_dialogs).map(name => [name, 0])),
 }
 
-function start_dialog(text) {
-	state.dialog = flow_text(text, screen_width - 3)
+function start_dialog(dialog) {
+	state.dialog = dialog
 	state.animation_start_time = performance.now()
 	state.dialog_lines_read = 0
-	state.dialog_state = 'reveal'
+	state.dialog_choice = 0
+	state.dialog_prev = []
+	state.dialog_state = dialog[0] instanceof Array ? 'reveal' : 'question'
 }
 
-function stop_dialog() {
-	state.dialog = []
-	state.animation_start_time = null
-	state.dialog_lines_read = 0
-	state.dialog_state = 'empty'
+function advance_dialog(response) {
+	const is_question = !(state.dialog[0] instanceof Array)
+	const remaining_dialog = is_question ? state.dialog[0][response] : state.dialog.slice(1)
+	if (remaining_dialog.length > 0) {
+		const dialog_prev = is_question ? state.dialog_prev : state.dialog[0].slice(-2)
+		start_dialog(remaining_dialog)
+		state.dialog_prev = dialog_prev
+	} else {
+		state.dialog = []
+		state.dialog_lines_read = 0
+		state.dialog_choice = 0
+		state.animation_start_time = null
+		state.dialog_state = 'empty'
+	}
 }
 
 const interact_keys = new Set(['KeyZ', 'KeyX', 'Space', 'Enter'])
@@ -1209,20 +1235,38 @@ function run() {
 
 	if (state.dialog.length > 0) {
 		state.click = null
-		if (state.dialog_state === 'segment_complete' && interact_pressed) {
-			const remaining_lines = state.dialog.length - state.dialog_lines_read
-			const next_two_lines = state.dialog
-				.slice(state.dialog_lines_read + 1, state.dialog_lines_read + 3)
-			if (remaining_lines <= 2) {
-				stop_dialog()
-			} else if (next_two_lines.includes(null)) {
-				state.animation_start_time = performance.now()
-				state.dialog_state = 'reveal'
-				state.dialog_lines_read = state.dialog.indexOf(null, state.dialog_lines_read) + 1
-			} else {
-				state.animation_start_time = performance.now()
-				state.dialog_state = 'scroll'
+		const up_pressed = state.keys.has('ArrowUp') && !state.keys.has('ArrowDown')
+		const down_pressed = state.keys.has('ArrowDown') && !state.keys.has('ArrowUp')
+		state.keys.delete('ArrowUp')
+		state.keys.delete('ArrowDown')
+
+		if (state.dialog_state === 'segment_complete') {
+			const remaining_lines = state.dialog[0].length - state.dialog_lines_read
+			const next_is_question = !((state.dialog[1] ?? []) instanceof Array)
+			if (interact_pressed) {
+				const next_two_lines = state.dialog[0]
+					.slice(state.dialog_lines_read + 1, state.dialog_lines_read + 3)
+				if (remaining_lines <= 2) {
+					advance_dialog()
+				} else if (next_two_lines.includes(null)) {
+					state.animation_start_time = performance.now()
+					state.dialog_state = 'reveal'
+					state.dialog_lines_read = state.dialog[0].indexOf(null, state.dialog_lines_read) + 1
+				} else {
+					state.animation_start_time = performance.now()
+					state.dialog_state = 'scroll'
+				}
+			} else if (remaining_lines <= 2 && next_is_question) {
+				advance_dialog()
 			}
+		} else if (state.dialog_state === 'question') {
+			const num_keys = Object.keys(state.dialog[0]).length
+			if (interact_pressed)
+				advance_dialog(Object.keys(state.dialog[0])[state.dialog_choice])
+			else if (up_pressed)
+				state.dialog_choice = (state.dialog_choice + num_keys - 1) % num_keys
+			else if (down_pressed)
+				state.dialog_choice = (state.dialog_choice + 1) % num_keys
 		}
 	} else {
 		if (!state.moving && state.click !== null) {
@@ -1348,28 +1392,31 @@ function run() {
 	for (let npc of state.npcs) draw_npc(npc, offset)
 	if (['reveal', 'segment_complete'].includes(state.dialog_state)) {
 		const flash_on = (animation_time % (36 / 60)) < (18 / 60)
-		const remaining_lines = state.dialog.length - state.dialog_lines_read
+		const remaining_lines = state.dialog[0].length - state.dialog_lines_read
 		const arrow = remaining_lines > 2 && flash_on
 		const already_revealed =
-			state.dialog_lines_read > 0 && state.dialog[state.dialog_lines_read - 1] !== null
-				? state.dialog[state.dialog_lines_read].length
+			state.dialog_lines_read > 0 && state.dialog[0][state.dialog_lines_read - 1] !== null
+				? state.dialog[0][state.dialog_lines_read].length
 				: 0
 		const dialog_revealed = Math.floor(animation_time * 60) + already_revealed
 		const segment_complete =
-			draw_textbox(state.dialog, arrow, dialog_revealed, state.dialog_lines_read * 2)
+			draw_textbox(state.dialog[0], arrow, dialog_revealed, state.dialog_lines_read * 2)
 		if (segment_complete) state.dialog_state = 'segment_complete'
+	} else if (state.dialog_state === 'question') {
+		draw_textbox(state.dialog_prev)
+		draw_choicebox(Object.keys(state.dialog[0]).map(encode_text), state.dialog_choice)
 	} else if (state.dialog_state === 'scroll') {
 		const scroll_increment = Math.min(Math.floor(animation_time * 60 / 6), 2.0)
 		const scroll_rows = state.dialog_lines_read * 2 + scroll_increment
-		const max_chars = state.dialog.slice(
+		const max_chars = state.dialog[0].slice(
 			state.dialog_lines_read + Math.floor(scroll_increment / 2),
 			state.dialog_lines_read + 2
 		).reduce((acc, text) => acc + text.length, 0)
-		draw_textbox(state.dialog, false, max_chars, scroll_rows)
+		draw_textbox(state.dialog[0], false, max_chars, scroll_rows)
 		if (scroll_increment === 2) {
 			state.dialog_lines_read += 1
 			state.dialog_state = 'reveal'
-			state.animation_start_time = state.dialog.length > 0 ? performance.now() : null
+			state.animation_start_time = state.dialog[0].length > 0 ? performance.now() : null
 		}
 	}
 	requestAnimationFrame(run)
