@@ -20,6 +20,30 @@
 	--scale: 1;
 }
 body {display: flex; justify-content: center; align-items: center; background: var(--background-color); width: 100dvw; height: 100dvh; margin: 0px}
+.indicator {
+	--size: calc(8px * var(--scale));
+	--height: calc(var(--size) * sqrt(3));
+	position: fixed;
+	border-style: solid;
+	filter: drop-shadow(0 0 var(--size) var(--corner-color));
+	opacity: 0%;
+}
+.indicator.horizontal {
+	--pos: calc(1/2 * (50% - 160px * var(--scale) / 2 - var(--border-width) - var(--height)));
+	border-width: var(--size) var(--height);
+	border-color: transparent var(--corner-color);
+}
+.indicator.vertical {
+	--pos: calc(1/2 * (50% - 144px * var(--scale) / 2 - var(--border-width) - var(--height)));
+	border-width: var(--height) var(--size);
+	border-color: var(--corner-color) transparent;
+}
+#prev-indicator.horizontal {left: var(--pos); border-left-width: 0}
+#next-indicator.horizontal {right: var(--pos); border-right-width: 0}
+#prev-indicator.vertical {top: var(--pos); border-top-width: 0}
+#next-indicator.vertical {bottom: var(--pos); border-bottom-width: 0}
+@keyframes flash {from {opacity: 1} to {opacity: 0}}
+.flash {animation: flash calc(36s / 60) steps(2, jump-none) 5}
 #screen {
 	width: calc(160px * var(--scale));
 	height: calc(144px * var(--scale));
@@ -874,6 +898,7 @@ function new_view(floor, offset) {
 
 const tile_size = 8
 const screen = document.getElementById('screen')
+const indicators = document.querySelectorAll('.indicator')
 const ctx = screen.getContext('2d')
 const tile_sheet = await fetch('assets/tiles.png')
 	.then(res => res.blob())
@@ -1170,6 +1195,7 @@ const state = {
 	animation_start_time: performance.now(),
 	keys: new Set(),
 	click: null,
+	have_clicked: false,
 	floor: 'f1',
 	navigation: [],
 	dialog: [],
@@ -1208,7 +1234,15 @@ function advance_dialog(response) {
 const interact_keys = new Set(['KeyZ', 'KeyX', 'Space', 'Enter'])
 document.body.addEventListener('keydown', e => e.repeat || state.keys.add(e.code))
 document.body.addEventListener('keyup', e => state.keys.delete(e.code))
-document.body.addEventListener('click', e => state.click = {x: e.offsetX, y: e.offsetY})
+document.body.addEventListener('click', e => {
+	const offset = screen.getBoundingClientRect()
+	const border_width = Number(window.getComputedStyle(screen).borderWidth.replace('px', ''))
+	state.have_clicked = true
+	state.click = {
+		x: Math.round(e.clientX - offset.x - border_width),
+		y: Math.round(e.clientY - offset.y - border_width),
+	}
+})
 
 function run() {
 	const border_width = Number(window
@@ -1220,6 +1254,14 @@ function run() {
 		Math.floor(window.innerHeight / (screen.height + 2 * border_width)),
 	))
 	document.documentElement.style.setProperty('--scale', `${scale}`)
+
+	const screen_size = screen.getBoundingClientRect()
+	const view_width = window.innerWidth
+	const view_height = window.innerHeight
+	if (view_width - screen_size.width > view_height - screen_size.height)
+		for (const indicator of indicators) indicator.classList.replace('vertical', 'horizontal')
+	else
+		for (const indicator of indicators) indicator.classList.replace('horizontal', 'vertical')
 
 	const interact_pressed = state.keys.intersection(interact_keys).size > 0 || state.click !== null
 	state.keys = state.keys.difference(interact_keys)
@@ -1234,11 +1276,19 @@ function run() {
 	let norm_move_time
 
 	if (state.dialog.length > 0) {
-		state.click = null
 		const up_pressed = state.keys.has('ArrowUp') && !state.keys.has('ArrowDown')
 		const down_pressed = state.keys.has('ArrowDown') && !state.keys.has('ArrowUp')
 		state.keys.delete('ArrowUp')
 		state.keys.delete('ArrowDown')
+
+		const click_below_or_right = state.click && (
+			state.click.y > 0 && state.click.x > screen.width * scale
+			|| state.click.x > 0 && state.click.y > screen.height * scale
+		)
+		const click_above_or_left = state.click && (
+			state.click.y < 0 && state.click.x < screen.width * scale
+			|| state.click.x < 0 && state.click.y < screen.height * scale
+		)
 
 		if (state.dialog_state === 'segment_complete') {
 			const remaining_lines = state.dialog[0].length - state.dialog_lines_read
@@ -1261,13 +1311,15 @@ function run() {
 			}
 		} else if (state.dialog_state === 'question') {
 			const num_keys = Object.keys(state.dialog[0]).length
-			if (interact_pressed)
-				advance_dialog(Object.keys(state.dialog[0])[state.dialog_choice])
-			else if (up_pressed)
+			if (up_pressed || click_above_or_left)
 				state.dialog_choice = (state.dialog_choice + num_keys - 1) % num_keys
-			else if (down_pressed)
+			else if (down_pressed || click_below_or_right)
 				state.dialog_choice = (state.dialog_choice + 1) % num_keys
+			else if (interact_pressed)
+				advance_dialog(Object.keys(state.dialog[0])[state.dialog_choice])
 		}
+
+		state.click = null
 	} else {
 		if (!state.moving && state.click !== null) {
 			const pos = {
@@ -1403,6 +1455,8 @@ function run() {
 			draw_textbox(state.dialog[0], arrow, dialog_revealed, state.dialog_lines_read * 2)
 		if (segment_complete) state.dialog_state = 'segment_complete'
 	} else if (state.dialog_state === 'question') {
+		if (state.have_clicked)
+			for (const indicator of indicators) indicator.classList.add('flash')
 		draw_textbox(state.dialog_prev)
 		draw_choicebox(Object.keys(state.dialog[0]).map(encode_text), state.dialog_choice)
 	} else if (state.dialog_state === 'scroll') {
@@ -1426,3 +1480,5 @@ requestAnimationFrame(run)
 
 </script>
 <canvas id=screen width=160 height=144></canvas>
+<div id="prev-indicator" class="indicator horizontal"></div>
+<div id="next-indicator" class="indicator horizontal"></div>
