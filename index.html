@@ -400,50 +400,108 @@ const npc_dialogs = flow_dialog_tree(screen_width - 3, {
 			YES: ["Are you sure?"],
 			NO: ["I wonder if they're even real."],
 		}],
+		["I'm starting to think ZUBAT is made up."],
+		["Even if ZUBAT isn't real, I can still have fun trying to catch one."],
 	],
 	bug_catcher_w: [
 		["I saw them! I'm sure they're from TEAM ROCKET!"],
-		["Is TEAM ROCKET evil?"],
+		["Is TEAM ROCKET evil?", {
+			YES: ["I thought so."],
+			NO: ["Maybe they have no choice..."],
+		}],
+		["TEAM ROCKET will always just be a bunch of thugs.", "That's how the world works."],
 	],
 	fossil_nerd: [
 		[
 			"Far away, on CINNABAR ISLAND, there's a POKéMON LAB.",
 			"They do research on regenerating fossils.",
 		],
-		["The POKéMON LAB uses advanced AGI models to reconstruct extinct organisms."],
+		["The POKéMON LAB uses advanced AGI models to reconstruct extinct POKéMON cells."],
+		["The power of AGI to revive ancient POKéMON is both exciting and scary."],
 	],
 	grunt_e: [
 		["POKéMON lived here long before people came."],
-		["Machines will be here long after people are gone."],
+		["AIs will be here long after people are gone."],
+		["Which are you?", {
+			"ᴾₖᴹₙ": ["Your time is past."],
+			MAN: ["Your time is ending."],
+			AI: ["You are the future."],
+		}],
+		["The cycle continues."],
 	],
 	grunt_n: [
 		["If you find a fossil, give it to me and scram!"],
+		["Did you find a fossil yet?", {
+			No: ["Then scram!"],
+		}],
+		["Listen kid, all I want is a fossil.", "Why?", "I don't know, I just do."],
+		["...", "Why do I want a fossil?", {
+			GREED: ["But there's easier ways to make money."],
+			CRIME: ["What? You think I'm a criminal just for the sake of it?", "Maybe I am."],
+			"ᴾₖᴹₙ": ["I already have EKANS."],
+		}],
+		["If you find a fossil, just keep it.", "Now scram!"],
 	],
 	grunt_s: [
 		["Darn it all! My associates won't stand for this!"],
+		["I lost to a kid. They'll all look down on me."],
+		["The boss will probably make an example of me."],
+		["I'm so embarassed. I think I'll stay here forever."],
 	],
 	grunt_w: [
 		["You made me mad! TEAM ROCKET will blacklist you!"],
+		["What do you mean you didn't want to join TEAM ROCKET?"],
+		["So you think TEAM ROCKET is going nowhere?", {
+			YES: ["We'll show you!"],
+			NO: ["That's what I thought, punk!"],
+		}],
+		["TEAM ROCKET is more than a bunch of thugs."],
 	],
 	hiker: [
 		["Kids like you shouldn't be here!"],
-		["Nobody should be here!", "But, especially not kids!"],
+		["Get out of here, kid.", "It's not safe!"],
+		["You're still here? Maybe you're stuck too.", "I'm sorry, kid."],
 	],
 	lass_n: [
 		["How do you get out of here?"],
-		["Does something seem off about MT. MOON to you?"],
+		["Does something seem off about MT. MOON to you?", {
+			YES: ["But what is it?"],
+			NO: ["Maybe it's just me..."],
+		}],
+		["I don't really rember what it's like outside.", "Have I always been in MT. MOON?"],
+		["I don't think I can think. Maybe I'm not real.", "Can you think? Are you real?", {
+			YES: ["How do you know?"],
+			NO: ["You sound so confident..."],
+		}],
+		["Am I just a prop in this place?"],
 	],
 	lass_s: [
 		["I heard there are some very rare fossils here."],
 		["What's so great about some rock, anyway?"],
+		["Are you looking for a fossil?", {
+			YES: ["Why?", {
+				"$$$": ["Who would buy a rock?"],
+				"ᴾₖᴹₙ": ["Like GEODUDE?"],
+				FUN: ["What a strange hobby."],
+			}],
+			NO: ["I didn't think so."],
+		}],
+		["What's taking my friends so long?"],
 	],
 	super_nerd: [
 		["I have to find stronger POKéMON."],
-		["These POKéMON are obsolete."],
+		["These POKéMON are obsolete. It's time to discard them."],
+		["POKéMON keep getting stronger.", "It's not worth keeping one for long."],
 	],
 	youngster: [
 		["I came down here to show off to girls."],
-		["Have you seen the blue-haired girl?"],
+		["Have you talked to the blue-haired girl?", {
+			YES: ["Did she say anything about me?", {
+				YES: ["Awsome."],
+				NO: ["Oh..."],
+			}],
+			NO: ["Too scared, huh?"],
+		}],
 		["Maybe I should go talk to her."],
 	],
 })
